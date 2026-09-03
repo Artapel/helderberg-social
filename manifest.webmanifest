@@ -1,0 +1,10 @@
+{
+  "name": "Helderberg Social",
+  "short_name": "Helderberg",
+  "description": "Groups, clubs, events and places across the Helderberg, Western Cape.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f0",
+  "theme_color": "#0f4c5c",
+  "icons": [{ "src": "assets/img/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

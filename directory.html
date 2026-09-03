@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Directory — groups, clubs and activities in the Helderberg</title>
+<meta name="description" content="Search and filter every group, club, regular activity and place in the Helderberg by category, town, audience and cost. Switch to the map to see what's near you.">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header data-hs-header></header>
+
+<main id="main">
+  <section>
+    <div class="wrap">
+      <h1 id="title">Directory</h1>
+      <p class="muted" style="max-width:60ch">Every group, club, regular activity and place we know about. Filter it down, or flip to the map.</p>
+
+      <form class="filters" id="filters" onsubmit="return false">
+        <div><label class="sr-only" for="q">Search</label><input id="q" type="search" placeholder="Search names, tags, descriptions…"></div>
+        <div><label class="sr-only" for="town">Town</label><select id="town"><option value="">All towns</option></select></div>
+        <div><label class="sr-only" for="aud">Who for</label><select id="aud"><option value="">Anyone</option></select></div>
+        <div><label class="sr-only" for="cost">Cost</label><select id="cost"><option value="">Any cost</option><option value="free">Free</option><option value="paid">Paid</option><option value="membership">Membership</option></select></div>
+      </form>
+      <div class="chips" id="cats"></div>
+      <div class="chips" id="types"></div>
+
+      <div class="toolbar">
+        <div class="count" id="count"></div>
+        <div class="row">
+          <select id="sort" style="width:auto"><option value="name">Sort: A–Z</option><option value="town">Sort: Town</option><option value="category">Sort: Category</option></select>
+          <div class="seg" role="tablist"><button id="v-list" class="on" type="button">List</button><button id="v-map" type="button">Map</button></div>
+          <button class="btn ghost sm" id="clear" type="button">Clear filters</button>
+        </div>
+      </div>
+
+      <div id="results" class="grid"></div>
+      <div id="map" class="map" hidden></div>
+    </div>
+  </section>
+</main>
+
+<footer data-hs-footer></footer>
+
+<script src="data/data.js"></script>
+<script src="assets/js/site.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  var D = HS.data, $ = function (id) { return document.getElementById(id); };
+  var state = { q: "", town: "", aud: "", cost: "", cat: "", type: "", sort: "name", view: "list" };
+  var qs = HS.qs();
+  Object.keys(state).forEach(function (k) { if (qs.has(k)) state[k] = qs.get(k); });
+
+  $("town").innerHTML += D.towns.map(function (t) { return '<option value="' + t.id + '">' + HS.esc(t.name) + '</option>'; }).join("");
+  $("aud").innerHTML += D.audiences.map(function (a) { return '<option value="' + a.id + '">' + HS.esc(a.name) + '</option>'; }).join("");
+  $("cats").innerHTML = '<button type="button" class="chip" data-cat="">All categories</button>' + D.categories.map(function (c) { return '<button type="button" class="chip" data-cat="' + c.id + '">' + c.icon + ' ' + HS.esc(c.name) + '</button>'; }).join("");
+  $("types").innerHTML = [["", "Everything"], ["group", "Groups & clubs"], ["activity", "Regular activities"], ["place", "Places"]].map(function (t) { return '<button type="button" class="chip" data-type="' + t[0] + '">' + t[1] + '</button>'; }).join("");
+
+  var map = null, layer = null;
+
+  function filtered() {
+    var items = D.listings.filter(function (l) {
+      if (state.town && l.town !== state.town) return false;
+      if (state.cat && l.category !== state.cat) return false;
+      if (state.type && l.type !== state.type) return false;
+      if (state.cost && l.cost !== state.cost) return false;
+      if (state.aud && (l.audience || []).indexOf(state.aud) === -1) return false;
+      return true;
+    });
+    items = state.q ? HS.search(state.q, items) : items.slice();
+    if (!state.q || state.sort !== "name") {
+      items.sort(function (a, b) {
+        if (state.sort === "town") return HS.townName(a.town).localeCompare(HS.townName(b.town)) || a.name.localeCompare(b.name);
+        if (state.sort === "category") return HS.catName(a.category).localeCompare(HS.catName(b.category)) || a.name.localeCompare(b.name);
+        return a.name.localeCompare(b.name);
+      });
+    }
+    return items;
+  }
+
+  function render() {
+    $("q").value = state.q; $("town").value = state.town; $("aud").value = state.aud; $("cost").value = state.cost; $("sort").value = state.sort;
+    document.querySelectorAll("#cats .chip").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-cat") === state.cat); });
+    document.querySelectorAll("#types .chip").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-type") === state.type); });
+    var items = filtered();
+    var title = state.cat ? HS.catName(state.cat) : state.type ? { group: "Groups & clubs", activity: "Regular activities", place: "Places" }[state.type] : "Directory";
+    if (state.town) title += " in " + HS.townName(state.town);
+    $("title").textContent = title;
+    document.title = title + " — Helderberg Social";
+    $("count").textContent = items.length + " listing" + (items.length === 1 ? "" : "s") + (state.q ? ' for “' + state.q + '”' : "");
+    $("results").innerHTML = items.length ? items.map(HS.card).join("") : '<div class="empty" style="grid-column:1/-1">Nothing matches those filters yet.<br><a href="submit.html">Know something that belongs here? Add it.</a></div>';
+    $("results").hidden = state.view === "map"; $("map").hidden = state.view !== "map";
+    $("v-list").classList.toggle("on", state.view !== "map"); $("v-map").classList.toggle("on", state.view === "map");
+    if (state.view === "map" && window.L) {
+      if (!map) { map = HS.map($("map"), [], { fit: false }); }
+      if (layer) map.removeLayer(layer);
+      layer = L.layerGroup().addTo(map);
+      var pts = [];
+      items.forEach(function (l) {
+        if (!l.coords) return;
+        L.marker(l.coords).addTo(layer).bindPopup('<b>' + HS.catIcon(l.category) + ' <a href="listing.html?id=' + encodeURIComponent(l.id) + '">' + HS.esc(l.name) + '</a></b><br>' + HS.esc(HS.townName(l.town)) + (l.coordsApprox ? ' <span style="opacity:.7">(approx.)</span>' : ""));
+        pts.push(l.coords);
+      });
+      setTimeout(function () { map.invalidateSize(); if (pts.length > 1) map.fitBounds(pts, { padding: [24, 24] }); else if (pts.length === 1) map.setView(pts[0], 14); }, 30);
+    }
+    HS.setQs(state);
+  }
+
+  $("q").addEventListener("input", function () { state.q = this.value.trim(); render(); });
+  ["town", "aud", "cost", "sort"].forEach(function (id) { $(id).addEventListener("change", function () { state[id] = this.value; render(); }); });
+  $("cats").addEventListener("click", function (e) { var b = e.target.closest("[data-cat]"); if (b) { state.cat = b.getAttribute("data-cat"); render(); } });
+  $("types").addEventListener("click", function (e) { var b = e.target.closest("[data-type]"); if (b) { state.type = b.getAttribute("data-type"); render(); } });
+  $("v-list").addEventListener("click", function () { state.view = "list"; render(); });
+  $("v-map").addEventListener("click", function () { state.view = "map"; render(); });
+  $("clear").addEventListener("click", function () { state = { q: "", town: "", aud: "", cost: "", cat: "", type: "", sort: "name", view: state.view }; render(); });
+  render();
+})();
+</script>
+</body>
+</html>

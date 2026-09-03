@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add a listing — Helderberg Social</title>
+<meta name="description" content="Add your club, group, activity, place or event to Helderberg Social, or report a change to an existing listing. Free.">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header data-hs-header></header>
+
+<main id="main">
+  <section>
+    <div class="wrap-narrow">
+      <h1 id="h">Add a listing</h1>
+      <p class="muted">Listings are free. We check each one before it goes live, so give us a website or social page we can confirm it against.</p>
+
+      <form id="f" class="panel" novalidate>
+        <div class="field"><label for="kind">What are you telling us about?</label>
+          <select id="kind" name="kind"><option value="group">A group or club people can join</option><option value="activity">A regular activity anyone can turn up to</option><option value="place">A place to go</option><option value="event">A dated event</option><option value="update">A change to an existing listing</option></select></div>
+        <div class="field" id="f-existing" hidden><label for="existing">Which listing?</label><select id="existing" name="existing"><option value="">Choose…</option></select></div>
+        <div class="field"><label for="name">Name</label><input id="name" name="name" required maxlength="120"><div class="err"></div></div>
+        <div class="filters" style="grid-template-columns:1fr 1fr">
+          <div class="field"><label for="category">Category</label><select id="category" name="category"></select></div>
+          <div class="field"><label for="town">Town</label><select id="town" name="town"></select></div>
+        </div>
+        <div class="field" id="f-date" hidden><label for="date">Date</label><input id="date" name="date" type="date"><div class="err"></div></div>
+        <div class="field"><label for="schedule">When does it happen?</label><input id="schedule" name="schedule" placeholder="e.g. Every Saturday 08:00, or first Friday of the month"><div class="hint">Days, times, frequency. Leave blank for a place that is simply open.</div></div>
+        <div class="field"><label for="summary">Describe it</label><textarea id="summary" name="summary" rows="5" required maxlength="800" placeholder="What happens, who it's for, what to bring, what it costs."></textarea><div class="err"></div></div>
+        <div class="filters" style="grid-template-columns:1fr 1fr">
+          <div class="field"><label for="cost">Cost</label><select id="cost" name="cost"><option value="free">Free</option><option value="paid">Paid / entry fee</option><option value="membership">Membership</option><option value="donation">Donation</option></select></div>
+          <div class="field"><label for="website">Website or social page</label><input id="website" name="website" type="url" placeholder="https://"><div class="err"></div></div>
+        </div>
+        <div class="field"><label>Who is it for?</label><div class="chips" id="aud"></div></div>
+        <div class="filters" style="grid-template-columns:1fr 1fr">
+          <div class="field"><label for="yourname">Your name</label><input id="yourname" name="yourname" required><div class="err"></div></div>
+          <div class="field"><label for="email">Your email</label><input id="email" name="email" type="email" required><div class="hint">Only so we can confirm details. Never published.</div><div class="err"></div></div>
+        </div>
+        <div class="field"><label><input type="checkbox" id="consent" style="width:auto;margin-right:.4rem">I'm allowed to share this information and it's accurate to the best of my knowledge.</label><div class="err"></div></div>
+        <div class="row"><button class="btn accent" type="submit">Send listing</button><span class="small muted" id="how"></span></div>
+      </form>
+
+      <div id="done" class="notice ok" hidden style="margin-top:1rem"></div>
+      <details style="margin-top:1rem"><summary class="small muted">If the send button did nothing, copy this and email it to us</summary><textarea id="raw" rows="12" readonly style="margin-top:.5rem;font-family:monospace;font-size:.8rem"></textarea></details>
+    </div>
+  </section>
+</main>
+
+<footer data-hs-footer></footer>
+
+<script src="data/data.js"></script>
+<script src="assets/js/site.js"></script>
+<script>
+(function () {
+  var D = HS.data, $ = function (id) { return document.getElementById(id); }, qs = HS.qs();
+  $("category").innerHTML = D.categories.map(function (c) { return '<option value="' + c.id + '">' + c.icon + ' ' + HS.esc(c.name) + '</option>'; }).join("");
+  $("town").innerHTML = D.towns.map(function (t) { return '<option value="' + t.id + '">' + HS.esc(t.name) + '</option>'; }).join("");
+  $("existing").innerHTML += D.listings.slice().sort(function (a, b) { return a.name.localeCompare(b.name); }).map(function (l) { return '<option value="' + l.id + '">' + HS.esc(l.name) + ' (' + HS.esc(HS.townName(l.town)) + ')</option>'; }).join("");
+  $("aud").innerHTML = D.audiences.map(function (a) { return '<button type="button" class="chip" data-a="' + a.id + '">' + HS.esc(a.name) + '</button>'; }).join("");
+  $("aud").addEventListener("click", function (e) { var b = e.target.closest(".chip"); if (b) b.classList.toggle("on"); });
+  $("how").textContent = D.site.submitEndpoint ? "Sent straight to our inbox." : D.site.submitEmail ? "Opens your email app with the listing filled in." : "Sending is not wired up yet: copy the text below and email it to us.";
+
+  function syncKind() {
+    var k = $("kind").value;
+    $("f-existing").hidden = k !== "update"; $("f-date").hidden = k !== "event";
+    $("h").textContent = k === "update" ? "Report a change" : k === "event" ? "Add an event" : "Add a listing";
+    if (k === "update" && $("existing").value) {
+      var l = HS.listings[$("existing").value];
+      if (l) { $("name").value = l.name; $("category").value = l.category; $("town").value = l.town; $("schedule").value = (l.schedule && l.schedule.text) || ""; $("summary").value = l.summary; $("cost").value = l.cost || "free"; $("website").value = l.website || ""; }
+    }
+  }
+  if (qs.get("kind")) $("kind").value = qs.get("kind");
+  if (qs.get("id")) { $("kind").value = "update"; $("existing").value = qs.get("id"); }
+  $("kind").addEventListener("change", syncKind); $("existing").addEventListener("change", syncKind); syncKind();
+
+  function setErr(id, msg) { var f = $(id).closest(".field"); f.classList.toggle("error", !!msg); f.querySelector(".err").textContent = msg || ""; return !msg; }
+  function payload() {
+    var aud = [].map.call(document.querySelectorAll("#aud .chip.on"), function (b) { return b.getAttribute("data-a"); });
+    return { kind: $("kind").value, existing: $("existing").value, name: $("name").value.trim(), category: $("category").value, town: $("town").value, date: $("date").value, schedule: $("schedule").value.trim(), summary: $("summary").value.trim(), cost: $("cost").value, website: $("website").value.trim(), audience: aud, submitter: { name: $("yourname").value.trim(), email: $("email").value.trim() }, submittedAt: new Date().toISOString() };
+  }
+  function asText(p) {
+    return ["Helderberg Social submission", "Kind: " + p.kind + (p.existing ? " (" + p.existing + ")" : ""), "Name: " + p.name, "Category: " + p.category, "Town: " + p.town, p.date ? "Date: " + p.date : "", "When: " + p.schedule, "Cost: " + p.cost, "Website: " + p.website, "Audience: " + p.audience.join(", "), "", p.summary, "", "From: " + p.submitter.name + " <" + p.submitter.email + ">", "Sent: " + p.submittedAt, "", "JSON:", JSON.stringify(p, null, 2)].filter(function (x) { return x !== ""; }).join("\n");
+  }
+  $("f").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var ok = true;
+    ok = setErr("name", $("name").value.trim() ? "" : "Give it a name.") && ok;
+    ok = setErr("summary", $("summary").value.trim().length >= 20 ? "" : "A sentence or two, please (20+ characters).") && ok;
+    ok = setErr("website", !$("website").value || /^https?:\/\/\S+\.\S+/.test($("website").value) ? "" : "Needs to start with http:// or https://") && ok;
+    ok = setErr("yourname", $("yourname").value.trim() ? "" : "We need a name.") && ok;
+    ok = setErr("email", /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($("email").value) ? "" : "A valid email address.") && ok;
+    ok = setErr("consent", $("consent").checked ? "" : "Please confirm.") && ok;
+    if ($("kind").value === "event") ok = setErr("date", $("date").value ? "" : "Events need a date.") && ok;
+    if (!ok) return;
+    var p = payload(), text = asText(p);
+    $("raw").value = text;
+    if (D.site.submitEndpoint) {
+      fetch(D.site.submitEndpoint, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" }, body: JSON.stringify(p) })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); $("done").hidden = false; $("done").textContent = "Thanks, " + p.submitter.name + ". We'll check it and add it to the directory."; $("f").reset(); })
+        .catch(function () { $("done").hidden = false; $("done").className = "notice"; $("done").textContent = "Sending failed. Please copy the text below and email it to us."; });
+    } else if (D.site.submitEmail) {
+      location.href = "mailto:" + D.site.submitEmail + "?subject=" + encodeURIComponent("[Helderberg Social] " + p.kind + ": " + p.name) + "&body=" + encodeURIComponent(text);
+      $("done").hidden = false; $("done").textContent = "Your email app should have opened with the listing filled in. If not, copy the text below.";
+    } else {
+      $("done").hidden = false; $("done").className = "notice"; $("done").textContent = "Sending is not configured on this copy of the site yet. Copy the text below and send it to us.";
+      document.querySelector("details").open = true;
+    }
+  });
+})();
+</script>
+</body>
+</html>

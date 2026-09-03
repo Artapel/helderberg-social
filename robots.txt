@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /submit.html
+Sitemap: https://helderbergsocial.co.za/sitemap.xml

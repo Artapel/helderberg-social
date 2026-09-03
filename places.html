@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Places — beaches, parks, trails and estates in the Helderberg</title>
+<meta name="description" content="Beaches, nature reserves, parks, trail centres and wine estates across the Helderberg, on a map and in a list.">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header data-hs-header></header>
+
+<main id="main">
+  <section>
+    <div class="wrap">
+      <h1>Places to go</h1>
+      <p class="muted" style="max-width:60ch">Beaches, reserves, parks, trail centres and estates. Map positions are approximate until a listing is verified.</p>
+      <div id="map" class="map" style="margin-bottom:1.5rem"></div>
+      <div class="chips" id="cats"></div>
+      <div id="results" class="grid"></div>
+    </div>
+  </section>
+</main>
+
+<footer data-hs-footer></footer>
+
+<script src="data/data.js"></script>
+<script src="assets/js/site.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(function () {
+  var D = HS.data, $ = function (id) { return document.getElementById(id); };
+  var places = D.listings.filter(function (l) { return l.type === "place"; });
+  var cats = {};
+  places.forEach(function (p) { cats[p.category] = 1; });
+  var state = { cat: HS.qs().get("cat") || "" };
+  $("cats").innerHTML = '<button type="button" class="chip" data-cat="">All</button>' + D.categories.filter(function (c) { return cats[c.id]; }).map(function (c) { return '<button type="button" class="chip" data-cat="' + c.id + '">' + c.icon + ' ' + HS.esc(c.name) + '</button>'; }).join("");
+  var map = HS.map($("map"), places), layer = null;
+  function render() {
+    var items = places.filter(function (p) { return !state.cat || p.category === state.cat; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
+    document.querySelectorAll("#cats .chip").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-cat") === state.cat); });
+    $("results").innerHTML = items.map(HS.card).join("");
+    if (map) {
+      if (layer) map.removeLayer(layer);
+      layer = L.layerGroup().addTo(map);
+      items.forEach(function (l) { L.marker(l.coords).addTo(layer).bindPopup('<b>' + HS.catIcon(l.category) + ' <a href="listing.html?id=' + encodeURIComponent(l.id) + '">' + HS.esc(l.name) + '</a></b><br>' + HS.esc(HS.townName(l.town))); });
+    }
+    HS.setQs(state);
+  }
+  $("cats").addEventListener("click", function (e) { var b = e.target.closest("[data-cat]"); if (b) { state.cat = b.getAttribute("data-cat"); render(); } });
+  render();
+})();
+</script>
+</body>
+</html>
