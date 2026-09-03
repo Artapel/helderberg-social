@@ -5,13 +5,16 @@
 - Repo: `github.com/Artapel/helderberg-social` (public), branch `master`.
 - GitHub Pages: deploy-from-branch, `master` at `/`. Every push to `master` republishes in about
   30 seconds. No workflow files; `.nojekyll` skips the Jekyll build.
-- Custom domain: `helderbergsocial.co.za`, set by the `CNAME` file in the repo root. Until the
-  domain resolves, `artapel.github.io/helderberg-social/` answers 301 to the custom domain, so
-  there is no preview URL. To preview before DNS exists, remove `CNAME` temporarily.
-- HTTPS: GitHub issues the certificate automatically once the DNS records below resolve. Then set
-  `https_enforced: true` (Settings → Pages → Enforce HTTPS).
+- Custom domain: `helderbergsocial.co.za`, set by the `CNAME` file in the repo root.
+  `artapel.github.io/helderberg-social/` answers 301 to the custom domain.
+- Domain registered 2026-09-03 at HostAfrica (auto-renew on, renews 2027-09-03). DNS is the
+  registrar's zone (`ns1-4.host-ww.net`), records applied 2026-09-03 with `docs/dns-setup.py`.
+  Note: the HostAfrica API reported success on a delete and an add that had not applied; the
+  second (idempotent) run fixed both. Always re-read the zone after writing.
+- HTTPS: GitHub's Let's Encrypt certificate was approved 2026-09-03 19:03 and
+  `https_enforced` switched on the same minute. GitHub renews it automatically.
 
-DNS records to create at the registrar once the domain is bought (from GitHub's docs, 2026-09-02):
+DNS records in the zone (from GitHub's docs, 2026-09-02):
 
 | Host | Type | Value |
 |---|---|---|
