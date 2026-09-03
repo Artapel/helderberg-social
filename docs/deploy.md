@@ -1,5 +1,35 @@
 # Deploying
 
+## Live setup (as of 2026-09-02)
+
+- Repo: `github.com/Artapel/helderberg-social` (public), branch `master`.
+- GitHub Pages: deploy-from-branch, `master` at `/`. Every push to `master` republishes in about
+  30 seconds. No workflow files; `.nojekyll` skips the Jekyll build.
+- Custom domain: `helderbergsocial.co.za`, set by the `CNAME` file in the repo root. Until the
+  domain resolves, `artapel.github.io/helderberg-social/` answers 301 to the custom domain, so
+  there is no preview URL. To preview before DNS exists, remove `CNAME` temporarily.
+- HTTPS: GitHub issues the certificate automatically once the DNS records below resolve. Then set
+  `https_enforced: true` (Settings → Pages → Enforce HTTPS).
+
+DNS records to create at the registrar once the domain is bought (from GitHub's docs, 2026-09-02):
+
+| Host | Type | Value |
+|---|---|---|
+| `@` | A | `185.199.108.153` |
+| `@` | A | `185.199.109.153` |
+| `@` | A | `185.199.110.153` |
+| `@` | A | `185.199.111.153` |
+| `@` | AAAA | `2606:50c0:8000::153` |
+| `@` | AAAA | `2606:50c0:8001::153` |
+| `@` | AAAA | `2606:50c0:8002::153` |
+| `@` | AAAA | `2606:50c0:8003::153` |
+| `www` | CNAME | `artapel.github.io` |
+
+GitHub also recommends verifying the domain in account Settings → Pages → Add a domain (a TXT
+record) before or soon after adding it, to prevent takeover if the CNAME is ever removed.
+
+## Alternatives
+
 The site is static, so anything that serves files works. There is no build step: copy the folder
 and serve it.
 
