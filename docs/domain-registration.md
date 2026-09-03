@@ -1,6 +1,9 @@
 # Registering the .co.za domain
 
-Checked 2026-09-02 against the ZACR registry WHOIS (`whois -h whois.registry.net.za`, run from 106.19).
+Goal: pay only the annual domain fee. No hosting bundle, no add-ons. The site is hosted on our own
+server.
+
+Checked 2026-09-02 against the ZACR registry WHOIS (`whois -h whois.registry.net.za`).
 
 ## Availability at time of check
 
@@ -27,43 +30,29 @@ Checked 2026-09-02 against the ZACR registry WHOIS (`whois -h whois.registry.net
 
 Availability changes by the minute. Re-check immediately before buying.
 
-## How Daisy's existing domains are held
+## Domain-only pricing (checked 2026-09-02 on each registrar's public page)
 
-`daisy.co.za` and `daisysolutions.co.za` are registered through the registrar **Global Sense**, with
-nameservers `ns1/ns2/ns3.daisy.co.za`. So "registering ourselves" has two possible meanings:
+| Registrar | Register | Renew | Domain without hosting? |
+|---|---|---|---|
+| domains.co.za | R99.00/yr | R109.00/yr | Yes, parked free until you point it somewhere |
+| Afrihost | R197.00/yr | R99.00/yr | Yes, with full DNS control |
 
-### Option A: register directly with an accredited registrar (fast, cheap)
+Over three years the two cost about the same; domains.co.za is cheaper up front, Afrihost cheaper
+on renewal. Other accredited registrars (xneelo, Cloudflare Registrar, and others) also sell
+`.co.za` on its own; prices not checked.
 
-Any ZACR-accredited registrar can register a `.co.za` in minutes. Well-known ones include
-domains.co.za, Afrihost, xneelo, Cloudflare (co.za supported), and Global Sense (where Daisy's
-domains already sit). Typical retail price is under R100/year (confirm on the registrar's site;
-not verified here). Steps:
+## Steps
 
-1. Create an account at the chosen registrar with the owning entity's details (registrant = the
-   legal owner; use a role mailbox, not a personal one, so renewals survive staff changes).
-2. Search the name, add to cart, pay.
-3. Point nameservers at wherever the site's DNS will live (Daisy's `ns1-3.daisy.co.za`, or the
-   registrar's DNS, or Cloudflare).
-4. Turn on auto-renew and add the expiry date to the estate calendar.
-
-### Option B: become a ZACR-accredited registrar ourselves (slow, only worth it at volume)
-
-From the ZARC accreditation criteria page (https://zarc.web.za/za-registrar-accreditation-criteria/)
-and the ZADNA guidelines PDF, checked 2026-09-02:
-
-- Accreditation fee **ZAR 5 000**, paid before the application is reviewed.
-- Sign the Registry-Registrar Agreement, pass legal/administrative verification (company
-  registration documents, primary and secondary contacts).
-- Pass the technical OT&E: an EPP client that completes the full set of contact, domain, transfer,
-  renew, poll and COZA-extension operations against the test server within a **3-month** window.
-- Then fund a prepaid balance from which registrations are debited (Schedule A fees; not itemised
-  on that page).
-
-This only makes sense if Daisy intends to sell domains to customers (for example as part of the
-ISP build-out). For one site, use Option A.
+1. Create an account at the chosen registrar in your own name. Use an email address you will still
+   own in ten years, because renewal reminders go there.
+2. Search the name, add **domain only** to the cart, decline hosting, email and privacy add-ons, pay.
+3. Turn on auto-renew and put the expiry date in your calendar anyway.
+4. DNS: either use the registrar's free DNS and create an `A` record for `@` and `www` pointing at
+   the server, or change the nameservers to wherever you run DNS.
+5. Once the record resolves, issue the TLS certificate on the server (Let's Encrypt).
 
 ## Recommendation
 
-Register **helderbergsocial.co.za** via Option A. It matches the site name, reads well, and was
-available at the time of the check. `whatsonhelderberg.co.za` is a good second choice if the
-site leans towards events.
+Register **helderbergsocial.co.za**. It matches the site name, reads well, and was available at
+the time of the check. `whatsonhelderberg.co.za` is a good second choice if the site leans towards
+events.

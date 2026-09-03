@@ -1,33 +1,45 @@
 # Deploying
 
-The site is static, so it can be served by anything. Two sensible homes:
+The site is static, so anything that serves files works. There is no build step: copy the folder
+and serve it.
 
-## 1. Docker on daisy-dev_111.150 (matches daisysolutions.co.za)
-
-The existing `daisy-website` container on 111.150 is the pattern to copy. Outline:
+## Own server with nginx
 
 ```
-# on 111.150
-mkdir -p ~/helderberg-social && rsync -a --delete <this folder>/ ~/helderberg-social/
-docker run -d --name helderberg-social --restart unless-stopped \
-  -v ~/helderberg-social:/usr/share/nginx/html:ro nginx:alpine
+# on the server
+sudo mkdir -p /var/www/helderbergsocial
+rsync -a --delete --exclude .git ./ user@server:/var/www/helderbergsocial/
 ```
 
-Then add a proxy host in Nginx Proxy Manager (the public front door on 111.150) for
-`helderbergsocial.co.za` pointing at the container, with a Let's Encrypt certificate, and create
-the A record at the registrar/DNS host.
+Minimal nginx server block:
 
-Nothing in this file has been run; it is the intended procedure. Do not run `docker` on the laptop.
+```
+server {
+    listen 80;
+    server_name helderbergsocial.co.za www.helderbergsocial.co.za;
+    root /var/www/helderbergsocial;
+    index index.html;
+    error_page 404 /404.html;
+    location / { try_files $uri $uri/ =404; }
+    location ~* \.(css|js|svg|webmanifest)$ { expires 7d; add_header Cache-Control "public"; }
+}
+```
 
-## 2. Any static host
+Then `certbot --nginx -d helderbergsocial.co.za -d www.helderbergsocial.co.za` for TLS.
 
-GitHub Pages, Cloudflare Pages or a plain Apache vhost all work unchanged. `404.html` uses
-root-relative paths, so the site must be served from the domain root.
+If the server already runs Docker, the equivalent is one `nginx:alpine` container with the folder
+mounted read-only at `/usr/share/nginx/html`, behind whatever reverse proxy terminates TLS.
+
+## Free static hosts
+
+GitHub Pages, Cloudflare Pages or Netlify all serve this unchanged and cost nothing, which keeps
+the domain fee as the only recurring cost. `404.html` uses root-relative paths, so the site must be
+served from the domain root, not a sub-folder.
 
 ## Before launch checklist
 
 - [ ] Set `site.submitEmail` (or `submitEndpoint`) in `data/data.js`.
-- [ ] Replace `helderbergsocial.co.za` in `robots.txt` and `sitemap.xml` if a different domain is bought.
+- [ ] Replace `helderbergsocial.co.za` in `robots.txt`, `sitemap.xml` and this file if a different domain is bought.
 - [ ] Verify at least the front-page listings (see `content-verification.md`) and flip them to `verified: true`.
-- [ ] Add a real OG image (`assets/img/og.png`, 1200x630) and reference it from each page's `<meta property="og:image">`.
+- [ ] Add an OG image (`assets/img/og.png`, 1200x630) and reference it from each page's `<meta property="og:image">`.
 - [ ] Decide on analytics (none included).
