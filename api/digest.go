@@ -12,21 +12,32 @@ import (
 func (a *App) scheduler(ctx context.Context) {
 	tick := time.NewTicker(time.Minute)
 	defer tick.Stop()
-	watch := time.NewTicker(a.cfg.WatchInterval)
-	defer watch.Stop()
-	first := time.After(2 * time.Minute)
+	started := time.Now()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-first:
-			a.runWatch("startup")
-		case <-watch.C:
-			a.runWatch("scheduled")
 		case <-tick.C:
+			a.flushStats()
 			n := time.Now().In(a.cfg.TZ)
 			day := n.Format("2006-01-02")
-			if n.Hour() == a.cfg.DigestHour && a.metaGet("last:digest:daily") != day {
+			// Source watching: settings decide the interval; the first run
+			// waits two minutes after start so a restart loop cannot hammer sites.
+			if a.settingBool("watch_on") && time.Since(started) > 2*time.Minute {
+				last, _ := time.Parse(time.RFC3339, a.metaGet("last:watch"))
+				if time.Since(last) >= a.watchInterval() {
+					_ = a.metaSet("last:watch", now())
+					go a.runWatch("scheduled")
+				}
+			}
+			if n.Hour() == 3 && a.metaGet("last:housekeeping") != day {
+				_ = a.metaSet("last:housekeeping", day)
+				a.housekeeping()
+			}
+			if !a.settingBool("digests_on") {
+				continue
+			}
+			if n.Hour() == a.digestHour() && a.metaGet("last:digest:daily") != day {
 				_ = a.metaSet("last:digest:daily", day)
 				if c, err := a.runDigest("daily", false); err != nil {
 					a.logf("daily digest: %v", err)
@@ -34,17 +45,13 @@ func (a *App) scheduler(ctx context.Context) {
 					a.logf("daily digest sent to %d subscribers", c)
 				}
 			}
-			if n.Hour() == a.cfg.DigestHour && n.Weekday() == a.cfg.WeeklyDay && a.metaGet("last:digest:weekly") != day {
+			if n.Hour() == a.digestHour() && n.Weekday() == a.weeklyDay() && a.metaGet("last:digest:weekly") != day {
 				_ = a.metaSet("last:digest:weekly", day)
 				if c, err := a.runDigest("weekly", false); err != nil {
 					a.logf("weekly digest: %v", err)
 				} else {
 					a.logf("weekly digest sent to %d subscribers", c)
 				}
-			}
-			if n.Hour() == 3 && a.metaGet("last:housekeeping") != day {
-				_ = a.metaSet("last:housekeeping", day)
-				a.housekeeping()
 			}
 		}
 	}

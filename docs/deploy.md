@@ -39,6 +39,9 @@ Proxy Manager at `https://api.helderbergsocial.co.za`. Build, configuration, sec
 model and runbook are in [`docs/api.md`](api.md). The site keeps working if the API is
 down: events fall back to `data/data.js` and the forms show a copy-out block.
 
+The site is managed from the API's own console at `https://api.helderbergsocial.co.za/admin`
+(emailed link + Google Authenticator; runbook in `docs/api.md`, *The admin console*).
+
 ## Alternatives
 
 The site is static, so anything that serves files works. There is no build step: copy the folder

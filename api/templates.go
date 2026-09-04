@@ -141,40 +141,9 @@ var tmplSrc = `
 {{define "page"}}<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{{.Title}} · Helderberg Social</title></head>
 <body style="margin:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c2431"><div style="max-width:560px;margin:48px auto;padding:24px;background:#fff;border-radius:12px">
 <h1 style="font-size:22px;margin:0 0 12px">{{.Title}}</h1><p>{{.Body}}</p>
-{{if .Queue}}<p><a href="{{.Queue}}">Open the moderation queue</a></p>{{end}}
+{{if .Queue}}<p><a href="{{.Queue}}">Open the console</a></p>{{end}}
 <p><a href="{{.Site}}">Back to Helderberg Social</a></p></div></body></html>{{end}}
 
-{{define "queue"}}<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Moderation · Helderberg Social</title>
-<style>body{margin:0;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1c2431;font-size:14px}.wrap{max-width:960px;margin:0 auto;padding:20px}h1{font-size:20px}h2{font-size:16px;margin:24px 0 8px}.card{background:#fff;border-radius:10px;padding:12px 14px;margin-bottom:10px;border:1px solid #e5e9ee}.meta{color:#6b7280;font-size:12px}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}button{border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:600}.ok{background:#1f7a4d;color:#fff}.no{background:#c0392b;color:#fff}.gh{background:#e5e9ee}.stats{display:flex;gap:16px;flex-wrap:wrap}.stats div{background:#fff;border-radius:10px;padding:10px 14px;border:1px solid #e5e9ee}.stats b{display:block;font-size:20px}pre{background:#f4f6f8;padding:8px;border-radius:6px;overflow:auto;font-size:12px;white-space:pre-wrap}.msg{background:#fff7e6;border:1px solid #f5d28a;padding:8px 12px;border-radius:8px}table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:4px 6px;border-bottom:1px solid #eef1f4;font-size:12px;vertical-align:top}</style></head>
-<body><div class="wrap"><h1>Helderberg Social · moderation</h1>
-{{if .Message}}<p class="msg">{{.Message}}</p>{{end}}
-<div class="stats"><div><b>{{len .Events}}</b>events waiting</div><div><b>{{len .Listings}}</b>listings waiting</div><div><b>{{.Approved}}</b>approved events</div><div><b>{{.SubsConfirmed}}</b>subscribers<span class="meta"> (+{{.SubsPending}} unconfirmed)</span></div></div>
-<form method="post" action="/api/admin/act" class="row"><input type="hidden" name="t" value="{{.Token}}"><button class="gh" name="action" value="watch">Check sources now</button><button class="gh" name="action" value="digest-preview">Send me a preview digest</button></form>
-<p class="meta">Last daily digest {{or .LastDigestDaily "never"}} · last weekly {{or .LastDigestWeek "never"}} · last source check {{or .LastWatch "never"}} · v{{.Version}}</p>
-
-<h2>Events waiting for a decision</h2>
-{{if not .Events}}<p class="meta">Nothing waiting.</p>{{end}}
-{{range .Events}}<div class="card"><b>{{.Title}}</b> <span class="meta">({{.Origin}})</span><br>
-<span class="meta">{{.When}} · {{.TownName}} · {{.CatName}} · {{.Cost}}{{if .Listing}} · listing: {{.Listing}}{{end}}{{if .SubmitterName}} · from {{.SubmitterName}}{{end}}</span>
-{{if .Summary}}<div style="margin-top:6px;white-space:pre-wrap">{{.Summary}}</div>{{end}}
-{{if .Website}}<div class="meta" style="margin-top:4px"><a href="{{.Website}}" rel="noopener noreferrer" target="_blank">{{.Website}}</a></div>{{end}}
-<form method="post" action="/api/admin/act" class="row"><input type="hidden" name="t" value="{{$.Token}}"><input type="hidden" name="id" value="{{.ID}}"><button class="ok" name="action" value="approve">Approve</button><button class="no" name="action" value="reject">Reject</button></form></div>{{end}}
-
-<h2>Listing submissions</h2>
-{{if not .Listings}}<p class="meta">Nothing waiting.</p>{{end}}
-{{range .Listings}}<div class="card"><b>{{.Name}}</b> <span class="meta">#{{.ID}} · {{.Kind}}{{if .Existing}} → {{.Existing}}{{end}} · {{.Category}} · {{.Town}} · {{.Cost}} · from {{.Submitter}}</span>
-<div style="margin-top:6px;white-space:pre-wrap">{{.Summary}}</div>
-{{if .Schedule}}<div class="meta">When: {{.Schedule}}</div>{{end}}
-{{if .Website}}<div class="meta"><a href="{{.Website}}" rel="noopener noreferrer" target="_blank">{{.Website}}</a></div>{{end}}
-<details><summary class="meta">Block for data/data.js</summary><pre>{{.DataJS}}</pre></details>
-<form method="post" action="/api/admin/act" class="row"><input type="hidden" name="t" value="{{$.Token}}"><input type="hidden" name="id" value="{{.ID}}"><button class="ok" name="action" value="accept">Mark handled</button><button class="no" name="action" value="reject-listing">Reject</button></form></div>{{end}}
-
-<h2>Watched sources</h2>
-<table><tr><th>Source</th><th>Kind</th><th>Last check</th><th>Status</th><th>Last change</th></tr>
-{{range .Sources}}<tr><td><a href="{{.URL}}" rel="noopener noreferrer" target="_blank">{{.Label}}</a></td><td>{{.Kind}}</td><td>{{.Checked}}</td><td>{{.Status}}</td><td>{{.Changed}}</td></tr>{{end}}</table>
-
-{{if .MailFailures}}<h2>Recent mail failures</h2><table>{{range .MailFailures}}<tr><td>{{.SentAt}}</td><td>{{.Kind}}</td><td>{{.Err}}</td></tr>{{end}}</table>{{end}}
-</div></body></html>{{end}}
 `
 
 func parseTemplates() *template.Template {

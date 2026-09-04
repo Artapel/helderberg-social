@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 1
+const schemaVersion = 2
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -94,6 +94,13 @@ var schema = []string{
 	`CREATE TABLE IF NOT EXISTS tokens_used (jti TEXT PRIMARY KEY, used_at TEXT NOT NULL)`,
 	`CREATE TABLE IF NOT EXISTS mail_log (id INTEGER PRIMARY KEY, to_hash TEXT NOT NULL, kind TEXT NOT NULL, sent_at TEXT NOT NULL, ok INTEGER NOT NULL, err TEXT NOT NULL DEFAULT '')`,
 	`CREATE INDEX IF NOT EXISTS mail_log_to ON mail_log(to_hash, sent_at)`,
+	// v2: admin console
+	`CREATE TABLE IF NOT EXISTS sessions (id_hash TEXT PRIMARY KEY, created_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, expires_at TEXT NOT NULL, ip_hash TEXT NOT NULL DEFAULT '', ua TEXT NOT NULL DEFAULT '', revoked INTEGER NOT NULL DEFAULT 0)`,
+	`CREATE TABLE IF NOT EXISTS audit_log (id INTEGER PRIMARY KEY, at TEXT NOT NULL, action TEXT NOT NULL, target TEXT NOT NULL DEFAULT '', detail TEXT NOT NULL DEFAULT '', ip_hash TEXT NOT NULL DEFAULT '')`,
+	`CREATE TABLE IF NOT EXISTS req_stats (day TEXT NOT NULL, route TEXT NOT NULL, status INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, route, status))`,
+	`CREATE TABLE IF NOT EXISTS pageviews (day TEXT NOT NULL, path TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, path))`,
+	`CREATE TABLE IF NOT EXISTS pv_uniques (day TEXT NOT NULL, path TEXT NOT NULL, iph TEXT NOT NULL, PRIMARY KEY (day, path, iph))`,
+	`CREATE TABLE IF NOT EXISTS blocklist (id INTEGER PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('ip','email')), value TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE (kind, value))`,
 }
 
 func openDB(dir string) (*sql.DB, error) {
@@ -283,6 +290,11 @@ func (a *App) housekeeping() {
 		{`DELETE FROM events WHERE status IN ('rejected') AND decided_at < ?`, []any{cut(180 * 24 * time.Hour)}},
 		{`DELETE FROM events WHERE status = 'approved' AND (CASE WHEN end_date = '' THEN date ELSE end_date END) < ?`, []any{time.Now().AddDate(-1, 0, 0).Format("2006-01-02")}},
 		{`DELETE FROM seen_uids WHERE seen_at < ?`, []any{cut(400 * 24 * time.Hour)}},
+		{`DELETE FROM sessions WHERE expires_at < ? OR revoked = 1`, []any{cut(24 * time.Hour)}},
+		{`DELETE FROM audit_log WHERE at < ?`, []any{cut(365 * 24 * time.Hour)}},
+		{`DELETE FROM req_stats WHERE day < ?`, []any{time.Now().AddDate(0, 0, -400).Format("2006-01-02")}},
+		{`DELETE FROM pageviews WHERE day < ?`, []any{time.Now().AddDate(0, 0, -400).Format("2006-01-02")}},
+		{`DELETE FROM pv_uniques WHERE day < ?`, []any{time.Now().AddDate(0, 0, -35).Format("2006-01-02")}},
 	}
 	for _, s := range stmts {
 		if _, err := a.db.Exec(s.q, s.args...); err != nil {

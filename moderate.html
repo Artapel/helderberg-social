@@ -21,12 +21,13 @@
   <section>
     <div class="wrap-narrow">
       <h1>Moderation</h1>
-      <p class="muted">For the site's moderator. There is no password: enter the moderator address and a sign-in link is emailed to it. The link works for twelve hours.</p>
+      <p class="muted">For the site's moderator. There is no password: enter the moderator address and a single-use sign-in link is emailed to it (valid 15 minutes). The console then asks for the code from your authenticator app.</p>
       <form id="f" class="panel" novalidate>
         <div class="field"><label for="email">Moderator email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"><div class="err"></div></div>
         <div class="row"><button class="btn" type="submit" id="send">Email me a sign-in link</button></div>
       </form>
       <div id="done" class="notice ok" hidden style="margin-top:1rem"></div>
+      <p class="small muted" style="margin-top:1rem">Already have a link? <a id="console-link" href="#" hidden>Open the console</a></p>
     </div>
   </section>
 </main>

@@ -26,13 +26,18 @@ image, non-root, read-only filesystem, all capabilities dropped.
 
 ## Security model
 
-- **No credentials.** Every action link is an HMAC-SHA256 token (purpose, subject,
-  expiry, nonce) signed with `HS_SECRET`; single-use tokens are recorded in
-  `tokens_used`. Confirm/verify links last 48 h, moderation links 30 days, admin
-  sign-in 12 h.
+- **No passwords.** Every public action link is an HMAC-SHA256 token (purpose,
+  subject, expiry, nonce) signed with `HS_SECRET`; single-use tokens are recorded
+  in `tokens_used`. Confirm/verify links last 72 h, moderation links 30 days.
+- **Admin sign-in is two-factor** (see *The admin console* below): an emailed
+  single-use link (15 min) and then a time-based code from Google Authenticator
+  (RFC 6238) or a one-time backup code. Moderation links in emails land inside
+  the console and need a session, so a forwarded email can approve nothing.
 - **Origin.** CORS allows only `HS_SITE_URL`. Requests are limited per IP
-  (token bucket: 60 GET/min, 6 POST/min), bodies capped at 32 KB, honeypot
+  (token bucket: 60 GET/min; 6 POST/min for public writes and the sign-in
+  steps; 120/min for the signed-in console), bodies capped at 32 KB, honeypot
   fields (`website` on subscribe, `company` on submissions) drop bots silently.
+  Addresses and clients on the console blocklist are dropped silently.
 - **Input.** Strict vocabularies for town/category/audience/cost/kind, URLs
   must be http(s) without userinfo, control characters stripped, lengths
   enforced server-side. Everything rendered through `html/template`.
@@ -50,10 +55,64 @@ image, non-root, read-only filesystem, all capabilities dropped.
   cdnjs`, `connect-src` the API only, `object-src 'none'`, `base-uri 'self'`),
   no inline scripts, Leaflet loaded with Subresource Integrity hashes.
 
-Known limits: SQLite on one node (nightly backup, see `api/backup.sh`); a
-compromised admin mailbox equals admin access, which is true of any magic-link
-system; the source watcher cannot read JavaScript-rendered pages (Quicket,
-Lourensford's event directory), those stay on the manual check list.
+Known limits: SQLite on one node (nightly backup, see `api/backup.sh`, plus
+snapshots from the console); a compromised admin mailbox is *not* enough on its
+own any more, but mailbox plus phone is; the source watcher cannot read
+JavaScript-rendered pages (Quicket, Lourensford's event directory), those stay
+on the manual check list.
+
+## The admin console
+
+`https://api.helderbergsocial.co.za/admin` (no JavaScript, works under a CSP
+that forbids scripts; every control is a form).
+
+**Signing in.** `/admin/login` asks for the admin email. If it matches
+`HS_ADMIN_EMAIL` a single-use link is mailed (15 min). Opening it sets a 10 min
+"pre" cookie and goes to `/admin/2fa`. The first time it goes to `/admin/enrol`
+instead: scan the QR with Google Authenticator, confirm one code, and write down
+the 10 backup codes (shown once, stored hashed). A correct code creates a
+session: 12 h absolute, 2 h idle, cookie `HttpOnly; Secure; SameSite=Strict;
+Path=/admin`. Five wrong codes kill the link. TOTP codes cannot be replayed
+inside their window; the secret is stored AES-GCM encrypted with a key derived
+from `HS_SECRET`, so a copy of the database alone cannot mint codes. All POSTs
+carry a per-session CSRF token and are checked against `Sec-Fetch-Site`.
+Everything is written to `audit_log`.
+
+**Lost phone:** sign in with a backup code, then *Security -> Remove
+authenticator* and enrol the new phone. **Lost everything:** set
+`HS_TOTP_RESET=1` in `.env` for one restart (wipes the authenticator and all
+sessions, audited), then remove it.
+
+**Pages** (left sidebar):
+
+| Page | What you can do |
+|---|---|
+| Dashboard | queue counts, subscribers, traffic today, mail failures, 14-day views, status, recent audit |
+| Queue | approve / reject events and listing submissions (the `data.js` block is shown per listing) |
+| Events | filter/search everything, edit any field, create events (published immediately, marked verified), unpublish, reopen, delete |
+| Listings | every submission by status, delete old ones |
+| Subscribers | search, edit preferences, resend/force confirmation, remove, block address, add by hand, CSV export |
+| Digests | schedule and next runs, preview to yourself, send now (with confirmation), 30-day history |
+| Sources | add/edit/enable/disable/delete watched pages and ICS feeds, check one or all now, forget a source's memory |
+| Analytics | page views and visitors per day, top pages, API routes and errors, subscriber growth, events by town/category (7/30/90 days) |
+| Logs | last 300 requests, mail log (hashes only), audit log, last 500 app log lines |
+| Security | authenticator status, regenerate backup codes, remove authenticator, active sessions with revoke, sign-in history, blocklist |
+| Settings | runtime overrides without restart: digest hour/day, pause digests, watch interval, pause watching, extra notification addresses, announcement banner, maintenance mode, pause submissions/subscriptions, public events window; read-only view of the environment |
+| System | version, uptime, memory, DB size and table counts, housekeeping now, integrity check, WAL checkpoint, test email, JSON export of everything, snapshots (`VACUUM INTO`, newest 14 kept) with download |
+
+**Settings the site reacts to.** `/api/events` carries a `site` object
+(`announcement`, `maintenance`, `submissions`, `subscriptions`). The static site
+shows the announcement banner on every page within its 5-minute cache and
+disables the subscribe/submit forms when they are paused. Maintenance mode makes
+every public POST answer 503 with the configured message.
+
+**Statistics.** Each page sends `POST /api/ping {"p":"/path"}`. The server
+counts views per day and path, and one visitor per day per path using
+`HMAC(secret, day) || ip` truncated, which cannot be reversed or joined across
+days. Nothing else is recorded: no user agent, no referrer, no cookie. Request
+counts per route/status per day come from the middleware. Retention: page views
+and route counts 400 days, unique hashes 35 days, audit log 1 year, sessions 1
+day after expiry.
 
 ## Configuration
 
@@ -63,10 +122,11 @@ Copy `api/.env.example` to `api/.env` (mode 600) and fill in:
 |---|---|
 | `HS_SECRET` | 32+ random characters (`openssl rand -base64 48`). Rotating it invalidates every outstanding link. |
 | `HS_SITE_URL` / `HS_API_URL` | `https://helderbergsocial.co.za` / `https://api.helderbergsocial.co.za` |
-| `HS_ADMIN_EMAIL` | The one address that can sign in to moderation and receives queue mail. |
+| `HS_ADMIN_EMAIL` | The one address that can sign in to the console (emailed link + authenticator code) and receives queue mail. |
 | `HS_MAIL_FROM`, `HS_SMTP_HOST`, `HS_SMTP_PORT`, `HS_SMTP_USER`, `HS_SMTP_PASS` | Transactional mail. Any provider with SMTP works. Add its SPF include and DKIM records for `helderbergsocial.co.za` at HostAfrica or mail lands in spam. |
 | `HS_BIND_IP` | Interface the container port binds to on the host (the internal address, never `0.0.0.0`). |
 | `HS_TZ`, `HS_DIGEST_HOUR`, `HS_WEEKLY_DAY`, `HS_WATCH_INTERVAL` | Defaults: `Africa/Johannesburg`, 6, 4 (Thursday), 6h. |
+| `HS_TOTP_RESET` | Set to `1` for one restart only, to wipe a lost authenticator and every session (audited). Remove it again straight away. |
 
 ## Deploy and operate
 

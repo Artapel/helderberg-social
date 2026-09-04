@@ -29,6 +29,7 @@ type Config struct {
 	WeeklyDay     time.Weekday
 	WatchInterval time.Duration
 	TrustProxy    bool
+	TOTPReset     bool // HS_TOTP_RESET=1: break-glass, wipes the authenticator once at start-up
 }
 
 func env(key, def string) string {
@@ -51,6 +52,7 @@ func loadConfig() (*Config, error) {
 		SMTPPass:   env("HS_SMTP_PASS", ""),
 		DevMailDir: env("HS_DEV_MAIL_DIR", ""),
 		TrustProxy: env("HS_TRUST_PROXY", "true") == "true",
+		TOTPReset:  env("HS_TOTP_RESET", "") == "1",
 	}
 	secret := env("HS_SECRET", "")
 	if len(secret) < 32 {

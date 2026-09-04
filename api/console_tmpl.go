@@ -1,0 +1,376 @@
+package main
+
+import (
+	"fmt"
+	"html/template"
+	"strings"
+	"time"
+)
+
+// Console templates. No JavaScript anywhere: every control is a form, so
+// the page works under a CSP that forbids scripts entirely. Styling is a
+// single inline stylesheet.
+
+var consoleFuncs = template.FuncMap{
+	"ago":  ago,
+	"ts":   fmtTS,
+	"town": townName,
+	"cat":  catName,
+	"date": fmtDate,
+	"pct": func(n, max int) int {
+		if max <= 0 {
+			return 0
+		}
+		return n * 100 / max
+	},
+	"join":  strings.Join,
+	"title": func(s string) string { return strings.ToUpper(s[:1]) + s[1:] },
+	"add":   func(a, b int) int { return a + b },
+	"sub":   func(a, b int) int { return a - b },
+	"short": func(s string, n int) string {
+		if len(s) > n {
+			return s[:n]
+		}
+		return s
+	},
+	"hasPrefix": strings.HasPrefix,
+	"list":      func(v ...string) []string { return v },
+	"dict": func(kv ...any) map[string]any {
+		m := map[string]any{}
+		for i := 0; i+1 < len(kv); i += 2 {
+			m[fmt.Sprint(kv[i])] = kv[i+1]
+		}
+		return m
+	},
+	"eqs":     func(a, b string) bool { return a == b },
+	"weekday": func(n int) string { return time.Weekday(n).String() },
+	"statusCls": func(s string) string {
+		switch s {
+		case "approved", "accepted", "ok":
+			return "ok"
+		case "rejected":
+			return "no"
+		case "pending_review":
+			return "warn"
+		}
+		return "gh"
+	},
+}
+
+func fmtTS(s string) string {
+	if s == "" {
+		return "never"
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return s
+	}
+	loc, _ := time.LoadLocation("Africa/Johannesburg")
+	return t.In(loc).Format("02 Jan 15:04")
+}
+
+func ago(s string) string {
+	if s == "" {
+		return "never"
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return s
+	}
+	d := time.Since(t)
+	switch {
+	case d < time.Minute:
+		return "just now"
+	case d < time.Hour:
+		return fmt.Sprintf("%dm ago", int(d.Minutes()))
+	case d < 48*time.Hour:
+		return fmt.Sprintf("%dh ago", int(d.Hours()))
+	}
+	return fmt.Sprintf("%dd ago", int(d.Hours()/24))
+}
+
+func parseConsole() *template.Template {
+	return template.Must(template.New("console").Funcs(consoleFuncs).Parse(consoleSrc))
+}
+
+const consoleCSS = `
+:root{--ink:#1c2431;--mute:#6b7280;--line:#e5e9ee;--bg:#f4f6f8;--card:#fff;--teal:#0f4c5c;--teal2:#2a93a5;--sun:#f26b3a;--ok:#1f7a4d;--no:#c0392b;--warn:#b7791f}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+a{color:var(--teal)}h1{font-size:22px;margin:0 0 14px}h2{font-size:15px;margin:22px 0 8px;letter-spacing:.02em}h3{font-size:13px;margin:14px 0 6px;color:var(--mute);text-transform:uppercase;letter-spacing:.06em}
+.shell{display:flex;min-height:100vh}aside{width:212px;background:var(--teal);color:#dbe9ec;padding:18px 12px;display:flex;flex-direction:column;flex-shrink:0}
+.brand{color:#fff;font-weight:700;font-size:17px;padding:4px 10px 14px}.brand em{font-style:italic;color:#ffc27a}.brand span{display:block;font-size:11px;font-weight:500;letter-spacing:.12em;text-transform:uppercase;color:#9fd2dc}
+nav a{display:flex;align-items:center;gap:10px;color:#dbe9ec;text-decoration:none;padding:8px 10px;border-radius:8px;font-weight:500}nav a i{font-style:normal;width:16px;text-align:center;opacity:.8}nav a.on,nav a:hover{background:rgba(255,255,255,.12);color:#fff}
+.badge{margin-left:auto;background:var(--sun);color:#fff;border-radius:10px;padding:0 7px;font-size:11px}.signout{margin-top:auto;padding:10px}.signout button{width:100%;background:rgba(255,255,255,.12);color:#fff}.ver{font-size:11px;color:#9fd2dc;text-align:center;margin:6px 0 0}
+main{flex:1;padding:22px 28px;max-width:1240px;min-width:0}
+.msg{background:#e7f6ec;border:1px solid #bfe3cb;color:#155a36;padding:8px 12px;border-radius:8px}.msg.bad{background:#fdecea;border-color:#f5c2bd;color:#8a1c12}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:8px}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}.card b{display:block;font-size:22px;line-height:1.2}.card small{color:var(--mute)}.card.hot{border-color:var(--sun)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px}
+table{border-collapse:collapse;width:100%}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top;font-size:13px}th{color:var(--mute);font-weight:600;font-size:12px}tr:hover td{background:#fafbfc}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row.tight{gap:4px}.inline{display:inline}
+button,.btn{border:0;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:600;font-size:13px;background:var(--line);color:var(--ink);text-decoration:none;display:inline-block}button.ok{background:var(--ok);color:#fff}button.no{background:var(--no);color:#fff}button.pri,.btn.pri{background:var(--sun);color:#fff}button.sm,.btn.sm{padding:3px 8px;font-size:12px}
+input[type=text],input[type=email],input[type=url],input[type=date],input[type=number],select,textarea{border:1px solid #cfd6de;border-radius:6px;padding:6px 8px;font:inherit;width:100%;background:#fff}textarea{min-height:90px}label{display:block;font-size:12px;color:var(--mute);margin:8px 0 3px;font-weight:600}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}.grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px}.mute{color:var(--mute)}.small{font-size:12px}.mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:600;background:var(--line)}.pill.ok{background:#e7f6ec;color:var(--ok)}.pill.no{background:#fdecea;color:var(--no)}.pill.warn{background:#fff4e0;color:var(--warn)}
+.bars{display:flex;align-items:flex-end;gap:3px;height:120px;padding:6px 0;border-bottom:1px solid var(--line)}.bars div{flex:1;background:var(--teal2);border-radius:3px 3px 0 0;min-height:2px;position:relative}.bars div span{position:absolute;bottom:-18px;left:0;right:0;font-size:9px;color:var(--mute);text-align:center;white-space:nowrap;overflow:hidden}.bars div.u{background:var(--sun)}
+.tabs{display:flex;gap:4px;margin-bottom:12px}.tabs a{padding:6px 12px;border-radius:6px;text-decoration:none;background:var(--line);color:var(--ink);font-weight:600;font-size:13px}.tabs a.on{background:var(--teal);color:#fff}
+pre{background:var(--bg);padding:8px 10px;border-radius:6px;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-word;margin:6px 0}.log{max-height:70vh;overflow:auto}
+.pager{display:flex;gap:8px;align-items:center;margin-top:10px;font-size:13px}.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:end;margin-bottom:12px}.filters label{margin:0 0 3px}.filters>div{min-width:130px}
+details summary{cursor:pointer;color:var(--teal);font-size:12px}.danger{border-color:#f5c2bd}.codes{columns:2;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;line-height:1.8}
+.auth{max-width:420px;margin:60px auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:26px 28px}.auth h1{font-size:20px}.auth .brand{color:var(--teal);padding:0 0 10px}.auth .brand em{color:var(--sun)}.auth .brand span{color:var(--mute)}
+@media(max-width:760px){.shell{flex-direction:column}aside{width:auto;flex-direction:row;flex-wrap:wrap;align-items:center}nav{display:flex;flex-wrap:wrap}.signout{margin:0}.grid2,.grid3{grid-template-columns:1fr}main{padding:14px}}
+`
+
+const consoleSrc = `
+{{define "head"}}<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{.}} · HS console</title><style>` + consoleCSS + `</style></head>{{end}}
+
+{{define "layout"}}{{template "head" .Title}}
+<body><div class="shell"><aside><div class="brand">Helderberg <em>Social</em><span>console</span></div>
+<nav>{{range .Nav}}<a href="{{.Path}}" {{if eq .Path $.Active}}class="on"{{end}}><i>{{.Icon}}</i>{{.Label}}{{if and (eq .Path "/admin/queue") $.Pending}}<b class="badge">{{$.Pending}}</b>{{end}}</a>{{end}}</nav>
+<form method="post" action="/admin/logout" class="signout"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>Sign out</button></form><p class="ver">v{{.Version}}</p></aside>
+<main><h1>{{.Title}}</h1>{{if .Msg}}<p class="msg{{if .Err}} bad{{end}}">{{.Msg}}</p>{{end}}{{.Body}}</main></div></body></html>{{end}}
+
+{{define "auth_shell"}}{{template "head" .Title}}<body><div class="auth"><div class="brand">Helderberg <em>Social</em><span>console</span></div>{{.Body}}<p class="small mute" style="margin-top:22px">v{{.Version}}</p></div></body></html>{{end}}
+
+{{define "auth_login"}}{{template "head" "Sign in"}}<body><div class="auth"><div class="brand">Helderberg <em>Social</em><span>console</span></div>
+<h1>Sign in</h1>{{if .D.Msg}}<p class="msg bad">{{.D.Msg}}</p>{{end}}
+<p class="mute">Step 1 of 2: a single-use link is emailed to the admin address. Step 2 is your authenticator app.</p>
+<form method="post" action="/admin/login"><input type="hidden" name="next" value="{{.D.Next}}"><label>Admin email</label><input type="email" name="email" required autocomplete="email" autofocus><p><button class="pri">Email me a sign-in link</button></p></form>
+<p class="small mute">v{{.Version}}</p></div></body></html>{{end}}
+
+{{define "auth_sent"}}{{template "head" "Check your email"}}<body><div class="auth"><div class="brand">Helderberg <em>Social</em><span>console</span></div>
+<h1>Check your email</h1><p>If that is the admin address, a sign-in link is on its way. It works once and for 15 minutes.</p><p class="mute small">Nothing happens without the authenticator code, so a link in the wrong hands is useless on its own.</p>
+<p class="small mute">v{{.Version}}</p></div></body></html>{{end}}
+
+{{define "auth_enrol"}}{{template "head" "Set up your authenticator"}}<body><div class="auth" style="max-width:520px"><div class="brand">Helderberg <em>Social</em><span>console</span></div>
+<h1>Set up your authenticator</h1>{{if .D.Msg}}<p class="msg bad">{{.D.Msg}}</p>{{end}}
+<p>Open <b>Google Authenticator</b> (or any TOTP app), tap <b>+</b>, and scan this code.</p>
+<p style="text-align:center"><img src="{{.D.QR}}" width="220" height="220" alt="QR code for the authenticator app"></p>
+<details><summary>Can't scan? Enter the key by hand</summary><p class="mono">{{.D.Secret}}</p><p class="small mute">Account: {{.D.Account}} · Type: time-based · 6 digits · 30 seconds · SHA1</p></details>
+<form method="post" action="/admin/enrol"><label>Enter the 6-digit code the app shows now</label><input type="text" name="code" inputmode="numeric" pattern="[0-9 ]*" autocomplete="one-time-code" required autofocus maxlength="7"><p><button class="pri">Confirm and finish</button></p></form>
+<p class="small mute">The secret is stored encrypted. You will get 10 backup codes on the next page.</p></div></body></html>{{end}}
+
+{{define "auth_backup"}}{{template "head" "Backup codes"}}<body><div class="auth"><div class="brand">Helderberg <em>Social</em><span>console</span></div>
+<h1>Backup codes</h1><p>Your authenticator is set. <b>Write these down and keep them somewhere safe.</b> Each works once, in place of an authenticator code, if you lose your phone. They are shown only now.</p>
+<div class="codes panel">{{range .D.Codes}}{{.}}<br>{{end}}</div>
+<p><a class="btn pri" href="{{.D.Next}}">I have saved them, open the console</a></p></div></body></html>{{end}}
+
+{{define "auth_twofa"}}{{template "head" "Authenticator code"}}<body><div class="auth"><div class="brand">Helderberg <em>Social</em><span>console</span></div>
+<h1>Authenticator code</h1>{{if .D.Msg}}<p class="msg bad">{{.D.Msg}}</p>{{end}}
+<p class="mute">Step 2 of 2: the 6-digit code from your authenticator app, or one of your backup codes.</p>
+<form method="post" action="/admin/2fa"><label>Code</label><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" required autofocus maxlength="11"><p><button class="pri">Sign in</button></p></form>
+<p class="small mute">Five wrong codes cancel this sign-in and you start again from the email link.</p></div></body></html>{{end}}
+
+{{/* ---------- dashboard ---------- */}}
+{{define "p_dashboard"}}{{$d := .D}}
+{{if $d.Maintenance}}<p class="msg bad">Maintenance mode is ON: public submissions and subscriptions are refused. <a href="/admin/settings">Settings</a></p>{{end}}
+<div class="cards">
+<a class="card{{if $d.PendingEvents}} hot{{end}}" href="/admin/queue" style="text-decoration:none;color:inherit"><b>{{$d.PendingEvents}}</b><small>events to moderate</small></a>
+<a class="card{{if $d.PendingListings}} hot{{end}}" href="/admin/queue" style="text-decoration:none;color:inherit"><b>{{$d.PendingListings}}</b><small>listings to moderate</small></a>
+<div class="card"><b>{{$d.Upcoming}}</b><small>upcoming approved events</small></div>
+<div class="card"><b>{{$d.Subs}}</b><small>subscribers <span class="mute">(+{{$d.SubsPending}} unconfirmed)</span></small></div>
+<div class="card"><b>{{$d.PVToday}}</b><small>page views today · {{$d.UniqToday}} visitors</small></div>
+<div class="card"><b>{{$d.ReqToday}}</b><small>API requests today · {{$d.ErrToday}} errors</small></div>
+<div class="card{{if $d.MailFail}} hot{{end}}"><b>{{$d.MailDay}}</b><small>emails in 24h · {{$d.MailFail}} failed</small></div>
+<div class="card"><b>{{$d.SourcesOn}}<span class="mute" style="font-size:14px">/{{$d.Sources}}</span></b><small>sources watched</small></div>
+</div>
+<div class="grid2">
+<div class="panel"><h3>Page views, last 14 days</h3><div class="bars">{{$max := 1}}{{range $d.PV}}{{if gt .N $max}}{{$max = .N}}{{end}}{{end}}{{range $d.PV}}<div style="height:{{pct .N $max}}%" title="{{.Day}}: {{.N}} views, {{.N2}} visitors"><span>{{slice .Day 5}}</span></div>{{end}}</div><p class="small mute" style="margin-top:22px">Counts come from the page beacon; visitors are unique per day, hashed with a daily salt.</p></div>
+<div class="panel"><h3>Status</h3><table>
+<tr><td>Uptime</td><td>{{$d.Uptime}}</td></tr>
+<tr><td>Last daily digest</td><td>{{or $d.LastDaily "never"}}</td></tr>
+<tr><td>Last weekly digest</td><td>{{or $d.LastWeekly "never"}}</td></tr>
+<tr><td>Last source check</td><td>{{ago $d.LastWatch}}</td></tr>
+<tr><td>Authenticator</td><td>{{if $d.Enrolled}}enrolled {{ago $d.Enrolled}} · {{$d.Backup}} backup codes left{{else}}<span class="pill no">not enrolled</span>{{end}}</td></tr>
+<tr><td>Active sessions</td><td>{{$d.Sessions}}</td></tr>
+<tr><td>Announcement banner</td><td>{{if $d.Announcement}}<span class="pill ok">showing</span>{{else}}off{{end}}</td></tr>
+</table>
+<div class="row" style="margin-top:10px"><form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="return" value="/admin"><button name="action" value="watch" class="sm">Check sources now</button></form>
+<form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="return" value="/admin"><input type="hidden" name="freq" value="weekly"><button name="action" value="digest-preview" class="sm">Preview weekly digest</button></form>
+<form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="return" value="/admin"><button name="action" value="backup" class="sm">Back up now</button></form></div></div>
+</div>
+<div class="panel"><h3>Recent activity</h3><table>{{range $d.Audit}}<tr><td class="mute">{{ts .At}}</td><td><b>{{.Action}}</b></td><td>{{.Target}}</td><td class="mute">{{.Detail}}</td><td class="mono mute">{{.IP}}</td></tr>{{else}}<tr><td class="mute">Nothing yet.</td></tr>{{end}}</table><p class="small"><a href="/admin/logs?tab=audit">Full audit log</a></p></div>
+{{end}}
+
+{{/* ---------- queue ---------- */}}
+{{define "event_card"}}<div class="panel"><b>{{.E.Title}}</b> <span class="pill {{statusCls .E.Status}}">{{.E.Status}}</span> <span class="pill">{{.E.Origin}}</span><br>
+<span class="mute small">{{.E.When}} · {{town .E.Town}} · {{cat .E.Category}} · {{.E.Cost}}{{if .E.Listing}} · listing: {{.E.Listing}}{{end}}{{if .E.SubmitterName}} · from {{.E.SubmitterName}}{{end}} · added {{ago .E.CreatedAt}}</span>
+{{if .E.Summary}}<div style="margin-top:6px;white-space:pre-wrap">{{.E.Summary}}</div>{{end}}
+{{if .E.Website}}<div class="small" style="margin-top:4px"><a href="{{.E.Website}}" rel="noopener noreferrer" target="_blank">{{.E.Website}}</a></div>{{end}}{{if and .E.Source (ne .E.Source .E.Website)}}<div class="small mute">source: {{.E.Source}}</div>{{end}}
+<form method="post" action="/admin/do" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.E.ID}}"><input type="hidden" name="return" value="{{.Return}}">
+{{if eq .E.Status "pending_review"}}<button class="ok" name="action" value="approve">Approve</button><button class="no" name="action" value="reject">Reject</button>{{end}}
+<a class="btn" href="/admin/events/edit?id={{.E.ID}}">Edit</a></form></div>{{end}}
+
+{{define "listing_card"}}<div class="panel"><b>{{.L.Name}}</b> <span class="pill {{statusCls .L.Status}}">{{.L.Status}}</span> <span class="mute small">#{{.L.ID}} · {{.L.Kind}}{{if .L.Existing}} → {{.L.Existing}}{{end}} · {{cat .L.Category}} · {{town .L.Town}} · {{.L.Cost}} · from {{.L.Submitter}} · {{ago .L.CreatedAt}}</span>
+<div style="margin-top:6px;white-space:pre-wrap">{{.L.Summary}}</div>
+{{if .L.Schedule}}<div class="small mute">When: {{.L.Schedule}}</div>{{end}}
+{{if .L.Website}}<div class="small"><a href="{{.L.Website}}" rel="noopener noreferrer" target="_blank">{{.L.Website}}</a></div>{{end}}
+<details><summary>Block for data/data.js</summary><pre>{{.L.DataJS}}</pre></details>
+<form method="post" action="/admin/do" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.L.ID}}"><input type="hidden" name="return" value="{{.Return}}">
+{{if eq .L.Status "pending_review"}}<button class="ok" name="action" value="accept">Mark handled</button><button class="no" name="action" value="reject-listing">Reject</button>{{else}}<button class="sm" name="action" value="listing-delete">Delete</button>{{end}}</form></div>{{end}}
+
+{{define "p_queue"}}{{$c := .CSRF}}
+<h2>Events waiting for a decision ({{len .D.Events}})</h2>
+{{range .D.Events}}{{template "event_card" (dict "E" . "CSRF" $c "Return" "/admin/queue")}}{{else}}<p class="mute">Nothing waiting.</p>{{end}}
+<h2>Listing submissions waiting ({{len .D.Listings}})</h2>
+{{range .D.Listings}}{{template "listing_card" (dict "L" . "CSRF" $c "Return" "/admin/queue")}}{{else}}<p class="mute">Nothing waiting.</p>{{end}}
+{{end}}
+
+{{/* ---------- events ---------- */}}
+{{define "p_events"}}{{$d := .D}}{{$c := .CSRF}}
+<form method="get" action="/admin/events" class="filters">
+<div><label>Status</label><select name="status"><option value="">any</option>{{range $d.Statuses}}<option value="{{.}}" {{if eq . $d.Status}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+<div><label>Origin</label><select name="origin"><option value="">any</option>{{range $d.Origins}}<option value="{{.}}" {{if eq . $d.Origin}}selected{{end}}>{{.}}</option>{{end}}</select></div>
+<div><label>Town</label><select name="town"><option value="">any</option>{{range $k, $v := $d.Towns}}<option value="{{$k}}" {{if eq $k $d.Town}}selected{{end}}>{{$v}}</option>{{end}}</select></div>
+<div style="min-width:220px"><label>Search</label><input type="text" name="q" value="{{$d.Q}}" placeholder="title, id or text"></div>
+<div><button>Filter</button> <a class="btn pri" href="/admin/events/edit">New event</a></div></form>
+<p class="small mute">{{$d.Total}} events</p>
+<div class="panel" style="padding:0 6px"><table><tr><th>Date</th><th>Title</th><th>Where</th><th>Status</th><th>Origin</th><th></th></tr>
+{{range $d.Events}}<tr><td style="white-space:nowrap">{{date .Date}}{{if .EndDate}} → {{date .EndDate}}{{end}}{{if .Time}}<br><span class="mute">{{.Time}}{{if .EndTime}}–{{.EndTime}}{{end}}</span>{{end}}</td>
+<td><a href="/admin/events/edit?id={{.ID}}"><b>{{.Title}}</b></a><br><span class="mute small mono">{{.ID}}</span></td><td>{{town .Town}}<br><span class="mute small">{{cat .Category}}</span></td>
+<td><span class="pill {{statusCls .Status}}">{{.Status}}</span></td><td>{{.Origin}}</td>
+<td><form method="post" action="/admin/do" class="row tight"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/events?status={{$d.Status}}&origin={{$d.Origin}}&town={{$d.Town}}&q={{$d.Q}}&page={{$d.Page}}">
+{{if eq .Status "pending_review"}}<button class="ok sm" name="action" value="approve">Approve</button><button class="no sm" name="action" value="reject">Reject</button>{{else if eq .Status "approved"}}<button class="sm" name="action" value="event-unapprove">Unpublish</button>{{else if eq .Status "rejected"}}<button class="ok sm" name="action" value="event-unapprove">Reopen</button>{{end}}</form></td></tr>
+{{else}}<tr><td colspan="6" class="mute">No events match.</td></tr>{{end}}</table></div>
+{{if gt $d.Pages 1}}<div class="pager">{{if gt $d.Page 1}}<a href="/admin/events?status={{$d.Status}}&origin={{$d.Origin}}&town={{$d.Town}}&q={{$d.Q}}&page={{sub $d.Page 1}}">← Newer</a>{{end}}<span class="mute">page {{$d.Page}} of {{$d.Pages}}</span>{{if lt $d.Page $d.Pages}}<a href="/admin/events?status={{$d.Status}}&origin={{$d.Origin}}&town={{$d.Town}}&q={{$d.Q}}&page={{add $d.Page 1}}">Older →</a>{{end}}</div>{{end}}
+{{end}}
+
+{{define "p_event_edit"}}{{$f := .D}}{{$e := $f.E}}
+<form method="post" action="/admin/do" class="panel"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{$e.ID}}"><input type="hidden" name="return" value="{{if $f.New}}/admin/events{{else}}/admin/events/edit?id={{$e.ID}}{{end}}">
+{{if not $f.New}}<p class="small mute">id <span class="mono">{{$e.ID}}</span> · origin {{$e.Origin}} · created {{ts $e.CreatedAt}}{{if $e.SubmitterName}} · submitted by {{$e.SubmitterName}}{{if $f.SubmitterEmail}} &lt;{{$f.SubmitterEmail}}&gt;{{end}}{{end}}{{if $f.IPHash}} · {{$f.IPHash}}{{end}}</p>{{end}}
+<label>Title</label><input type="text" name="title" value="{{$e.Title}}" required maxlength="120">
+<div class="grid3"><div><label>Date</label><input type="date" name="date" value="{{$e.Date}}" required></div><div><label>End date (optional)</label><input type="date" name="end_date" value="{{$e.EndDate}}"></div><div><label>Status</label><select name="status">{{range $s := (list "approved" "pending_review" "rejected")}}<option value="{{$s}}" {{if eq $s $e.Status}}selected{{end}}>{{$s}}</option>{{end}}</select></div></div>
+<div class="grid2"><div><label>Start time</label><input type="text" name="time" value="{{$e.Time}}" placeholder="18:30" pattern="([01][0-9]|2[0-3]):[0-5][0-9]"></div><div><label>End time</label><input type="text" name="end_time" value="{{$e.EndTime}}" placeholder="21:00" pattern="([01][0-9]|2[0-3]):[0-5][0-9]"></div></div>
+<div class="grid3"><div><label>Town</label><select name="town">{{range $f.Towns}}<option value="{{.}}" {{if eq . $e.Town}}selected{{end}}>{{town .}}</option>{{end}}</select></div><div><label>Category</label><select name="category">{{range $f.Cats}}<option value="{{.}}" {{if eq . $e.Category}}selected{{end}}>{{cat .}}</option>{{end}}</select></div><div><label>Cost</label><select name="cost">{{range $f.Costs}}<option value="{{.}}" {{if eq . $e.Cost}}selected{{end}}>{{.}}</option>{{end}}</select></div></div>
+<label>Summary</label><textarea name="summary" maxlength="800">{{$e.Summary}}</textarea>
+<div class="grid3"><div><label>Website</label><input type="url" name="website" value="{{$e.Website}}"></div><div><label>Source (where it came from)</label><input type="url" name="source" value="{{$e.Source}}"></div><div><label>Listing id (optional)</label><input type="text" name="listing" value="{{$e.Listing}}" placeholder="lourensford-market"></div></div>
+<p class="row"><button class="pri" name="action" value="event-save">{{if $f.New}}Create event{{else}}Save changes{{end}}</button> <a class="btn" href="/admin/events">Back</a></p></form>
+{{if not $f.New}}<form method="post" action="/admin/do" class="panel danger"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{$e.ID}}"><h3>Danger zone</h3><p class="row"><label class="inline" style="margin:0"><input type="checkbox" name="confirm" value="yes" required> I want to delete this event permanently</label><button class="no sm" name="action" value="event-delete">Delete event</button></p></form>{{end}}
+{{end}}
+
+{{/* ---------- listings ---------- */}}
+{{define "p_listings"}}{{$d := .D}}{{$c := .CSRF}}
+<div class="tabs">{{range $s := (list "" "pending_review" "accepted" "rejected" "pending_email")}}<a href="/admin/listings?status={{$s}}" {{if eq $s $d.Status}}class="on"{{end}}>{{or $s "all"}}</a>{{end}}</div>
+<p class="small mute">{{$d.Total}} submissions. Listings live in data/data.js in the repo: accepting a submission means you have copied its block into the file.</p>
+{{range $d.Listings}}{{template "listing_card" (dict "L" . "CSRF" $c "Return" (printf "/admin/listings?status=%s&page=%d" $d.Status $d.Page))}}{{else}}<p class="mute">Nothing here.</p>{{end}}
+{{if gt $d.Pages 1}}<div class="pager">{{if gt $d.Page 1}}<a href="/admin/listings?status={{$d.Status}}&page={{sub $d.Page 1}}">← Newer</a>{{end}}<span class="mute">page {{$d.Page}} of {{$d.Pages}}</span>{{if lt $d.Page $d.Pages}}<a href="/admin/listings?status={{$d.Status}}&page={{add $d.Page 1}}">Older →</a>{{end}}</div>{{end}}
+{{end}}
+
+{{/* ---------- subscribers ---------- */}}
+{{define "p_subscribers"}}{{$d := .D}}{{$c := .CSRF}}
+<div class="cards"><div class="card"><b>{{$d.Confirmed}}</b><small>confirmed</small></div><div class="card"><b>{{$d.Pending}}</b><small>awaiting confirmation</small></div><div class="card"><b>{{$d.Daily}}</b><small>daily</small></div><div class="card"><b>{{$d.Weekly}}</b><small>weekly</small></div></div>
+<form method="get" action="/admin/subscribers" class="filters"><div><label>Show</label><select name="f">{{range $s := (list "" "confirmed" "pending" "daily" "weekly")}}<option value="{{$s}}" {{if eq $s $d.Filter}}selected{{end}}>{{or $s "all"}}</option>{{end}}</select></div><div style="min-width:220px"><label>Email contains</label><input type="text" name="q" value="{{$d.Q}}"></div><div><button>Filter</button> <a class="btn" href="/admin/export/subscribers.csv">Export CSV</a></div></form>
+<div class="panel" style="padding:0 6px"><table><tr><th>Email</th><th>Plan</th><th>Filters</th><th>Status</th><th>Last digest</th><th></th></tr>
+{{range $d.Subs}}<tr><td><a href="/admin/subscribers/edit?id={{.ID}}">{{.Email}}</a><br><span class="mute small">joined {{ago .CreatedAt}}</span></td><td>{{.Frequency}} · {{.Horizon}}d</td><td class="small">{{if .Towns}}{{join .Towns ", "}}{{else}}all towns{{end}}<br>{{if .Categories}}{{join .Categories ", "}}{{else}}all categories{{end}}</td>
+<td>{{if .Confirmed}}<span class="pill ok">confirmed</span>{{else}}<span class="pill warn">pending</span>{{end}}</td><td>{{ago .LastSent}}</td>
+<td><form method="post" action="/admin/do" class="row tight"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/subscribers?f={{$d.Filter}}&q={{$d.Q}}&page={{$d.Page}}">
+{{if not .Confirmed}}<button class="sm" name="action" value="sub-resend">Resend</button><button class="ok sm" name="action" value="sub-confirm">Confirm</button>{{end}}<button class="sm" name="action" value="sub-delete">Remove</button></form></td></tr>
+{{else}}<tr><td colspan="6" class="mute">No subscribers match.</td></tr>{{end}}</table></div>
+{{if gt $d.Pages 1}}<div class="pager">{{if gt $d.Page 1}}<a href="/admin/subscribers?f={{$d.Filter}}&q={{$d.Q}}&page={{sub $d.Page 1}}">← Newer</a>{{end}}<span class="mute">page {{$d.Page}} of {{$d.Pages}}</span>{{if lt $d.Page $d.Pages}}<a href="/admin/subscribers?f={{$d.Filter}}&q={{$d.Q}}&page={{add $d.Page 1}}">Older →</a>{{end}}</div>{{end}}
+<form method="post" action="/admin/do" class="panel"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/subscribers"><h3>Add a subscriber by hand</h3><p class="small mute">Only for people who asked you directly: this skips the confirmation email (POPIA consent is on you).</p><div class="row"><input type="email" name="email" placeholder="name@example.co.za" style="max-width:320px" required><button name="action" value="sub-add">Add as confirmed</button></div></form>
+{{end}}
+
+{{define "p_subscriber_edit"}}{{$f := .D}}{{$s := $f.S}}
+<form method="post" action="/admin/do" class="panel"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{$s.ID}}"><input type="hidden" name="return" value="/admin/subscribers/edit?id={{$s.ID}}">
+<p><b>{{$s.Email}}</b> · {{if $s.Confirmed}}confirmed {{ts $s.ConfirmedAt}}{{else}}<span class="pill warn">not confirmed</span>{{end}} · joined {{ts $s.CreatedAt}} · last digest {{ago $s.LastSent}}</p>
+<div class="grid2"><div><label>Frequency</label><select name="frequency">{{range $x := (list "daily" "weekly")}}<option value="{{$x}}" {{if eq $x $s.Frequency}}selected{{end}}>{{$x}}</option>{{end}}</select></div><div><label>Horizon (days)</label><select name="horizon">{{range $x := (list "7" "14" "30")}}<option value="{{$x}}" {{if eq $x (printf "%d" $s.Horizon)}}selected{{end}}>{{$x}}</option>{{end}}</select></div></div>
+<label>Towns (none = all)</label><div class="row">{{range $f.Towns}}<label class="inline" style="margin:0"><input type="checkbox" name="towns" value="{{.}}" {{if index $f.TownSet .}}checked{{end}}> {{town .}}</label>{{end}}</div>
+<label>Categories (none = all)</label><div class="row">{{range $f.Cats}}<label class="inline" style="margin:0"><input type="checkbox" name="categories" value="{{.}}" {{if index $f.CatSet .}}checked{{end}}> {{cat .}}</label>{{end}}</div>
+<p class="row" style="margin-top:12px"><button class="pri" name="action" value="sub-save">Save</button>{{if not $s.Confirmed}}<button name="action" value="sub-resend">Resend confirmation</button><button class="ok" name="action" value="sub-confirm">Confirm now</button>{{end}}<a class="btn" href="/admin/subscribers">Back</a></p></form>
+<form method="post" action="/admin/do" class="panel danger"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{$s.ID}}"><h3>Danger zone</h3><p class="row"><button class="sm" name="action" value="sub-delete">Remove subscriber</button><button class="no sm" name="action" value="sub-block">Block this address and remove</button></p><p class="small mute">Blocking stores only a hash of the address; future subscriptions and submissions from it are silently dropped.</p></form>
+{{end}}
+
+{{/* ---------- digests ---------- */}}
+{{define "p_digests"}}{{$d := .D}}{{$c := .CSRF}}
+<div class="cards"><div class="card"><b>{{$d.Daily}}</b><small>daily subscribers</small></div><div class="card"><b>{{$d.Weekly}}</b><small>weekly subscribers</small></div><div class="card"><b>{{$d.Upcoming7}}</b><small>approved events, next 7 days</small></div><div class="card"><b>{{$d.Upcoming30}}</b><small>next 30 days</small></div></div>
+<div class="grid2"><div class="panel"><h3>Schedule</h3><table><tr><td>Digests</td><td>{{if $d.On}}<span class="pill ok">on</span>{{else}}<span class="pill no">paused</span>{{end}}</td></tr><tr><td>Send hour</td><td>{{$d.Hour}}:00 local</td></tr><tr><td>Weekly day</td><td>{{$d.Day}}</td></tr><tr><td>Next daily</td><td>{{$d.NextDaily}}</td></tr><tr><td>Next weekly</td><td>{{$d.NextWeekly}}</td></tr><tr><td>Last daily sent</td><td>{{or $d.LastDaily "never"}}</td></tr><tr><td>Last weekly sent</td><td>{{or $d.LastWeekly "never"}}</td></tr></table><p class="small"><a href="/admin/settings">Change the schedule</a></p></div>
+<div class="panel"><h3>Send</h3>
+<form method="post" action="/admin/do" class="row"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/digests"><select name="freq" style="width:auto"><option value="daily">daily</option><option value="weekly" selected>weekly</option></select><button name="action" value="digest-preview">Send me a preview</button></form>
+<p class="small mute">A preview goes only to the admin address, 7-day horizon, all towns.</p>
+<form method="post" action="/admin/do" class="row" style="margin-top:14px"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/digests"><select name="freq" style="width:auto"><option value="daily">daily</option><option value="weekly">weekly</option></select><label class="inline" style="margin:0"><input type="checkbox" name="confirm" value="yes"> yes, send to every subscriber now</label><button class="pri" name="action" value="digest-send">Send now</button></form>
+<p class="small mute">Sending now also marks today's scheduled run as done, so nobody gets it twice.</p></div></div>
+<div class="panel"><h3>History (from the mail log, last 30 days)</h3><table><tr><th>Day</th><th class="num">Daily sent</th><th class="num">Weekly sent</th><th class="num">Failed</th></tr>{{range $d.History}}<tr><td>{{.Day}}</td><td class="num">{{.Daily}}</td><td class="num">{{.Weekly}}</td><td class="num">{{if .Failed}}<span class="pill no">{{.Failed}}</span>{{else}}0{{end}}</td></tr>{{else}}<tr><td class="mute" colspan="4">No digests sent yet.</td></tr>{{end}}</table></div>
+{{end}}
+
+{{/* ---------- sources ---------- */}}
+{{define "p_sources"}}{{$d := .D}}{{$c := .CSRF}}
+<div class="row" style="margin-bottom:12px"><span class="mute">Watching {{if $d.On}}<span class="pill ok">on</span>{{else}}<span class="pill no">off</span>{{end}} · every {{$d.Interval}} min · last check {{ago $d.LastWatch}}</span>
+<form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/sources"><button name="action" value="watch">Check all now</button></form></div>
+<div class="panel" style="padding:0 6px"><table><tr><th>Source</th><th>Kind</th><th>Maps to</th><th>Last check</th><th>Status</th><th class="num">Events</th><th></th></tr>
+{{range $d.Sources}}{{$s := .}}<tr {{if not .Enabled}}style="opacity:.55"{{end}}><td><b>{{.Label}}</b><br><a class="small" href="{{.URL}}" rel="noopener noreferrer" target="_blank">{{short .URL 70}}</a></td><td>{{.Kind}}</td><td class="small">{{town .Town}}<br>{{cat .Category}}{{if .Listing}}<br><span class="mono">{{.Listing}}</span>{{end}}</td><td>{{ago .Checked}}{{if .Changed}}<br><span class="small mute">changed {{ago .Changed}}</span>{{end}}</td><td class="small">{{if .Status}}<span class="pill {{if hasPrefix .Status "error"}}no{{else if eq .Status "changed"}}warn{{else}}ok{{end}}">{{short .Status 60}}</span>{{else}}<span class="mute">not yet checked</span>{{end}}</td><td class="num">{{.Events}}</td>
+<td><form method="post" action="/admin/do" class="row tight"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/sources"><button class="sm" name="action" value="watch-one">Check</button><button class="sm" name="action" value="source-toggle">{{if .Enabled}}Disable{{else}}Enable{{end}}</button><button class="sm" name="action" value="source-forget" title="Forget what was seen so everything is offered again">Forget</button><button class="no sm" name="action" value="source-delete">Delete</button></form>
+<details><summary>edit</summary><form method="post" action="/admin/do"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/sources"><label>Label</label><input type="text" name="label" value="{{.Label}}"><label>URL</label><input type="url" name="url" value="{{.URL}}"><div class="grid2"><div><label>Kind</label><select name="kind">{{range $d.Kinds}}<option value="{{.}}" {{if eq . $s.Kind}}selected{{end}}>{{.}}</option>{{end}}</select></div><div><label>Listing id</label><input type="text" name="listing" value="{{.Listing}}"></div></div><div class="grid2"><div><label>Town</label><select name="town">{{range $d.Towns}}<option value="{{.}}" {{if eq . $s.Town}}selected{{end}}>{{town .}}</option>{{end}}</select></div><div><label>Category</label><select name="category">{{range $d.Cats}}<option value="{{.}}" {{if eq . $s.Category}}selected{{end}}>{{cat .}}</option>{{end}}</select></div></div><p><button class="sm pri" name="action" value="source-save">Save</button></p></form></details></td></tr>
+{{else}}<tr><td colspan="7" class="mute">No sources.</td></tr>{{end}}</table></div>
+<form method="post" action="/admin/do" class="panel"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/sources"><h3>Add a source</h3><p class="small mute">An <b>ics</b> feed becomes queued events automatically. An <b>html</b> page is watched for changes and you get an email when it changes.</p>
+<div class="grid2"><div><label>Label</label><input type="text" name="label" required placeholder="Lourensford events"></div><div><label>URL</label><input type="url" name="url" required placeholder="https://…"></div></div>
+<div class="grid2"><div><label>Kind</label><select name="kind"><option value="html">html page (watch for changes)</option><option value="ics">ics calendar feed</option></select></div><div><label>Listing id (optional)</label><input type="text" name="listing" placeholder="lourensford-wine-estate"></div></div>
+<div class="grid2"><div><label>Town</label><select name="town">{{range $d.Towns}}<option value="{{.}}">{{town .}}</option>{{end}}</select></div><div><label>Category</label><select name="category">{{range $d.Cats}}<option value="{{.}}" {{if eq . "community"}}selected{{end}}>{{cat .}}</option>{{end}}</select></div></div>
+<p><button class="pri" name="action" value="source-save">Add source</button></p></form>
+{{end}}
+
+{{/* ---------- analytics ---------- */}}
+{{define "p_analytics"}}{{$d := .D}}
+<div class="tabs">{{range $n := (list "7" "30" "90")}}<a href="/admin/analytics?days={{$n}}" {{if eq $n (printf "%d" $d.Days)}}class="on"{{end}}>{{$n}} days</a>{{end}}</div>
+<div class="cards"><div class="card"><b>{{$d.TotalPV}}</b><small>page views</small></div><div class="card"><b>{{$d.TotalUniq}}</b><small>daily visitors (sum)</small></div><div class="card"><b>{{$d.TotalReq}}</b><small>API requests</small></div><div class="card"><b>{{$d.TotalErr}}</b><small>API errors (4xx/5xx)</small></div></div>
+<div class="panel"><h3>Page views per day <span class="mute">(orange = visitors)</span></h3><div class="bars">{{range $d.PV}}<div style="height:{{pct .N $d.MaxPV}}%" title="{{.Day}}: {{.N}} views, {{.N2}} visitors"></div><div class="u" style="height:{{pct .N2 $d.MaxPV}}%" title="{{.Day}}: {{.N2}} visitors"></div>{{end}}</div></div>
+<div class="grid2"><div class="panel"><h3>Top pages</h3><table><tr><th>Path</th><th class="num">Views</th><th class="num">Visitors</th></tr>{{range $d.Top}}<tr><td class="mono">{{.K}}</td><td class="num">{{.N}}</td><td class="num">{{.N2}}</td></tr>{{else}}<tr><td class="mute" colspan="3">No page views recorded yet. The site sends a beacon on every page once the API is live.</td></tr>{{end}}</table></div>
+<div class="panel"><h3>API routes</h3><table><tr><th>Route</th><th class="num">Requests</th><th class="num">Errors</th></tr>{{range $d.Routes}}<tr><td class="mono">{{.K}}</td><td class="num">{{.N}}</td><td class="num">{{.N2}}</td></tr>{{else}}<tr><td class="mute" colspan="3">Nothing yet.</td></tr>{{end}}</table></div></div>
+<div class="panel"><h3>API requests per day <span class="mute">(orange = errors)</span></h3><div class="bars">{{range $d.Req}}<div style="height:{{pct .N $d.MaxReq}}%" title="{{.Day}}: {{.N}} requests, {{.N2}} errors"></div><div class="u" style="height:{{pct .N2 $d.MaxReq}}%"></div>{{end}}</div></div>
+<div class="grid3"><div class="panel"><h3>New confirmed subscribers</h3><table>{{range $d.SubGrowth}}<tr><td>{{.Day}}</td><td class="num">{{.N}}</td></tr>{{else}}<tr><td class="mute">None in this period.</td></tr>{{end}}</table></div>
+<div class="panel"><h3>Approved events by town</h3><table>{{range $d.Towns}}<tr><td>{{town .K}}</td><td class="num">{{.N}}</td></tr>{{end}}</table></div>
+<div class="panel"><h3>Approved events by category</h3><table>{{range $d.Cats}}<tr><td>{{cat .K}}</td><td class="num">{{.N}}</td></tr>{{end}}</table></div></div>
+{{end}}
+
+{{/* ---------- logs ---------- */}}
+{{define "p_logs"}}{{$d := .D}}
+<div class="tabs">{{range $t := (list "requests" "mail" "audit" "app")}}<a href="/admin/logs?tab={{$t}}" {{if eq $t $d.Tab}}class="on"{{end}}>{{title $t}}</a>{{end}}</div>
+{{if eq $d.Tab "requests"}}<p class="small mute">The last {{len $d.Reqs}} requests, newest first, in memory since start. Addresses are shown as hashes.</p><div class="panel log" style="padding:0 6px"><table><tr><th>When</th><th>Method</th><th>Path</th><th class="num">Status</th><th class="num">ms</th><th>Client</th></tr>{{range $d.Reqs}}<tr><td class="mono">{{.At.Format "15:04:05"}}</td><td>{{.Method}}</td><td class="mono">{{.Path}}</td><td class="num">{{if ge .Status 400}}<span class="pill no">{{.Status}}</span>{{else}}{{.Status}}{{end}}</td><td class="num">{{.Ms}}</td><td class="mono mute">{{.IP}}</td></tr>{{else}}<tr><td class="mute">Nothing yet.</td></tr>{{end}}</table></div>
+{{else if eq $d.Tab "mail"}}<p class="row small"><a href="/admin/logs?tab=mail">All</a> · <a href="/admin/logs?tab=mail&fail=1">Failures only</a> <span class="mute">· recipients are stored as hashes only</span></p><div class="panel log" style="padding:0 6px"><table><tr><th>When</th><th>Kind</th><th>To (hash)</th><th>Result</th></tr>{{range $d.Mail}}<tr><td>{{ts .At}}</td><td>{{.Kind}}</td><td class="mono mute">{{.ToHash}}</td><td>{{if .OK}}<span class="pill ok">sent</span>{{else}}<span class="pill no">failed</span> <span class="small">{{.Err}}</span>{{end}}</td></tr>{{else}}<tr><td class="mute">Nothing yet.</td></tr>{{end}}</table></div>
+{{else if eq $d.Tab "audit"}}<div class="panel log" style="padding:0 6px"><table><tr><th>When</th><th>Action</th><th>Target</th><th>Detail</th><th>Client</th></tr>{{range $d.Audit}}<tr><td>{{ts .At}}</td><td><b>{{.Action}}</b></td><td class="mono">{{.Target}}</td><td class="small">{{.Detail}}</td><td class="mono mute">{{.IP}}</td></tr>{{else}}<tr><td class="mute">Nothing yet.</td></tr>{{end}}</table></div>
+{{else}}<p class="small mute">The last {{len $d.Lines}} log lines, newest first. The container's own log has the full history.</p><div class="panel log"><pre>{{range $d.Lines}}{{.}}
+{{end}}</pre></div>{{end}}
+{{end}}
+
+{{/* ---------- security ---------- */}}
+{{define "p_security"}}{{$d := .D}}{{$c := .CSRF}}
+{{if $d.NewCodes}}<div class="panel danger"><h3>Your new backup codes</h3><p>Write them down now. This is the only time they are shown, and the old ones no longer work.</p><div class="codes">{{range $d.NewCodes}}{{.}}<br>{{end}}</div></div>{{end}}
+<div class="grid2">
+<div class="panel"><h3>How sign-in works</h3><table><tr><td>Factor 1</td><td>Single-use link emailed to <b>{{$d.AdminEmail}}</b>, 15 minutes</td></tr><tr><td>Factor 2</td><td>Time-based code from Google Authenticator (RFC 6238) or a backup code</td></tr><tr><td>Authenticator</td><td>{{if $d.Enrolled}}<span class="pill ok">enrolled</span> {{ts $d.EnrolledAt}}{{else}}<span class="pill no">not enrolled</span>{{end}}</td></tr><tr><td>Backup codes left</td><td>{{$d.BackupLeft}} of 10</td></tr><tr><td>Session</td><td>12 hours, 2 hours idle, cookie HttpOnly SameSite=Strict{{if $d.Secure}} Secure{{end}}</td></tr><tr><td>Wrong codes</td><td>5 per link, then the link is dead</td></tr><tr><td>Passwords</td><td>none exist</td></tr></table></div>
+<div class="panel"><h3>Authenticator</h3>
+<form method="post" action="/admin/do"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/security"><label>Current authenticator code</label><div class="row"><input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" style="max-width:140px" required><button name="action" value="backup-codes">Regenerate backup codes</button><button class="no" name="action" value="totp-reset">Remove authenticator</button></div></form>
+<p class="small mute">Removing the authenticator signs out every session; the next sign-in enrols a new one. If the phone is already lost, use a backup code to sign in first. If everything is lost, set <span class="mono">HS_TOTP_RESET=1</span> in the container's env for one restart.</p></div></div>
+<div class="panel"><h3>Active sessions</h3><table><tr><th>Started</th><th>Last seen</th><th>Expires</th><th>Client</th><th>Browser</th><th></th></tr>{{range $d.Sessions}}<tr><td>{{ts .CreatedAt}}</td><td>{{ago .LastSeen}}</td><td>{{ts .ExpiresAt}}</td><td class="mono mute">{{.IPHash}}</td><td class="small">{{short .UA 80}}</td><td>{{if .Current}}<span class="pill ok">this one</span>{{else}}<form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/security"><input type="hidden" name="id" value="{{.Hash}}"><button class="sm" name="action" value="session-revoke">Revoke</button></form>{{end}}</td></tr>{{end}}</table>
+<form method="post" action="/admin/do" style="margin-top:8px"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/security"><button class="sm" name="action" value="session-revoke-others">Sign out every other session</button></form></div>
+<div class="panel"><h3>Sign-in history</h3><table>{{range $d.Logins}}<tr><td>{{ts .At}}</td><td><b>{{.Action}}</b></td><td class="small">{{.Detail}}</td><td class="mono mute">{{.IP}}</td></tr>{{else}}<tr><td class="mute">Nothing yet.</td></tr>{{end}}</table></div>
+<div class="panel"><h3>Blocklist</h3><p class="small mute">Blocked addresses are dropped silently. Emails are stored as hashes; clients as the <span class="mono">ip:xxxxxxxx</span> tag from the logs.</p>
+<table>{{range $d.Blocks}}<tr><td>{{.Kind}}</td><td class="mono">{{short .Value 16}}</td><td>{{.Note}}</td><td class="mute">{{ts .CreatedAt}}</td><td><form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/security"><input type="hidden" name="id" value="{{.ID}}"><button class="sm" name="action" value="block-remove">Unblock</button></form></td></tr>{{else}}<tr><td class="mute">Nothing blocked.</td></tr>{{end}}</table>
+<form method="post" action="/admin/do" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/security"><select name="kind" style="width:auto"><option value="email">email</option><option value="ip">client tag</option></select><input type="text" name="value" placeholder="name@example.com or ip:1a2b3c4d" style="max-width:260px" required><input type="text" name="note" placeholder="why" style="max-width:200px"><button name="action" value="block-add">Block</button></form></div>
+<div class="panel"><h3>Rate limits and hardening (fixed)</h3><table><tr><td>GET</td><td>60/min per client, burst 30</td></tr><tr><td>POST</td><td>6/min per client, burst 6 (public writes and the sign-in steps)</td></tr><tr><td>Console</td><td>120/min per client, burst 60</td></tr><tr><td>Body</td><td>32 KB</td></tr><tr><td>Mail per recipient</td><td>5/hour, 20/day</td></tr><tr><td>Headers</td><td>CSP (no scripts), HSTS, nosniff, no-referrer, frame DENY, no-store</td></tr><tr><td>CORS</td><td>site origin only</td></tr><tr><td>Container</td><td>scratch image, non-root, read-only filesystem, no capabilities</td></tr></table></div>
+{{end}}
+
+{{/* ---------- settings ---------- */}}
+{{define "p_settings"}}{{$d := .D}}{{$c := .CSRF}}
+<form method="post" action="/admin/do" class="panel"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/settings">
+<p class="small mute">These take effect immediately and survive restarts. Blank fields fall back to the environment default shown.</p>
+{{range $d.Rows}}{{$row := .}}<label>{{.Label}}</label>
+{{if eq .Kind "bool"}}<label class="inline" style="margin:0;font-weight:400;color:inherit"><input type="checkbox" name="{{.Key}}" value="1" {{if eq .Value "1"}}checked{{end}}> {{.Help}}</label>
+{{else if eq .Kind "select-day"}}<select name="{{.Key}}" style="max-width:220px">{{range $i, $n := $d.Days}}<option value="{{$i}}" {{if eq (printf "%d" $i) $row.Value}}selected{{end}}>{{$n}}</option>{{end}}</select><div class="small mute">{{.Help}}</div>
+{{else if eq .Kind "int"}}<input type="number" name="{{.Key}}" value="{{.Value}}" style="max-width:160px"><div class="small mute">{{.Help}} Default {{.Default}}.</div>
+{{else}}<input type="text" name="{{.Key}}" value="{{.Value}}" maxlength="200"><div class="small mute">{{.Help}}</div>{{end}}
+{{end}}
+<p class="row" style="margin-top:14px"><button class="pri" name="action" value="settings-save">Save settings</button><button name="action" value="settings-reset">Reset all to defaults</button></p></form>
+<div class="panel"><h3>Environment (read-only)</h3><table>{{range $d.Env}}<tr><td class="mono">{{index . 0}}</td><td class="mono">{{index . 1}}</td></tr>{{end}}</table><p class="small mute">Change these in api/.env on the host and restart the container.</p></div>
+{{end}}
+
+{{/* ---------- system ---------- */}}
+{{define "p_system"}}{{$d := .D}}{{$c := .CSRF}}
+{{if $d.Integrity}}<p class="msg">{{$d.Integrity}}</p>{{end}}
+<div class="grid2"><div class="panel"><h3>Service</h3><table><tr><td>Version</td><td class="mono">{{$d.Version}}</td></tr><tr><td>Go</td><td class="mono">{{$d.Go}}</td></tr><tr><td>Started</td><td>{{ts $d.Started}} (up {{$d.Uptime}})</td></tr><tr><td>Goroutines</td><td>{{$d.Goroutines}}</td></tr><tr><td>Heap in use</td><td>{{$d.Mem}}</td></tr><tr><td>Last housekeeping</td><td>{{or $d.LastHousekeeping "never"}}</td></tr></table>
+<div class="row" style="margin-top:10px"><form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/system"><button class="sm" name="action" value="housekeeping">Run housekeeping</button> <button class="sm" name="action" value="test-mail">Send test email</button> <button class="sm" name="action" value="flush-stats">Flush stats</button></form></div></div>
+<div class="panel"><h3>Database</h3><table><tr><td>File</td><td class="mono">{{$d.DBPath}}</td></tr><tr><td>Size</td><td>{{$d.DBSize}}{{if $d.WALSize}} + WAL {{$d.WALSize}}{{end}}</td></tr><tr><td>Schema</td><td>v{{$d.Schema}}</td></tr></table>
+<table style="margin-top:8px">{{range $d.Tables}}<tr><td class="mono">{{.K}}</td><td class="num">{{.N}}</td></tr>{{end}}</table>
+<div class="row" style="margin-top:10px"><form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/system"><button class="sm" name="action" value="integrity">Integrity check</button> <button class="sm" name="action" value="checkpoint">Checkpoint WAL</button></form> <a class="btn sm" href="/admin/export/all.json">Export everything (JSON)</a></div></div></div>
+<div class="panel"><h3>Backups</h3><p class="small mute">Snapshots are written inside the data volume (<span class="mono">backups/</span>); the newest 14 are kept. The host's nightly backup.sh copies the volume off the machine.</p>
+<form method="post" action="/admin/do"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/system"><button class="pri sm" name="action" value="backup">Back up now</button></form>
+<table style="margin-top:8px">{{range $d.Backups}}<tr><td class="mono">{{.Name}}</td><td>{{.Size}}</td><td class="mute">{{ts .At}}</td><td><a class="btn sm" href="/admin/backups/{{.Name}}">Download</a> <form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/system"><input type="hidden" name="id" value="{{.Name}}"><button class="sm" name="action" value="backup-delete">Delete</button></form></td></tr>{{else}}<tr><td class="mute">No snapshots yet.</td></tr>{{end}}</table></div>
+{{end}}
+`

@@ -3,22 +3,28 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
 
 // Moderation. Nothing a member of the public submits is ever shown on the
-// site until the admin approves it. The admin authenticates with a signed
-// link sent to the configured address; there is no password anywhere.
+// site until the admin approves it. Links in notification emails land in
+// the console, which needs a signed-in session (see auth.go): a forwarded
+// email can never approve anything on its own.
 
 func (a *App) moderateURL(kind, id, action string) string {
-	return a.cfg.APIURL + "/api/moderate?t=" + a.sign("moderate", kind+"|"+id+"|"+action, 30*24*time.Hour)
+	return a.cfg.APIURL + "/admin/moderate?t=" + a.sign("moderate", kind+"|"+id+"|"+action, 30*24*time.Hour)
 }
 
-func (a *App) adminURL() string {
-	return a.cfg.APIURL + "/api/admin?t=" + a.sign("admin", "session", 12*time.Hour)
+func (a *App) adminURL() string { return a.cfg.APIURL + "/admin/queue" }
+
+// notify sends a moderation email to the admin and any extra addresses.
+func (a *App) notify(kind, subject, body string) {
+	for _, to := range a.notifyList() {
+		_ = a.send(Message{To: to, Kind: kind, Subject: subject, Text: body})
+	}
 }
 
 func (a *App) notifyAdminEvent(id string) {
@@ -29,7 +35,7 @@ func (a *App) notifyAdminEvent(id string) {
 	e := evs[0]
 	body := a.textEvent(e) + "\n\nApprove: " + a.moderateURL("event", e.ID, "approve") +
 		"\nReject:  " + a.moderateURL("event", e.ID, "reject") + "\n\nQueue: " + a.adminURL() + "\n"
-	_ = a.send(Message{To: a.cfg.AdminEmail, Kind: "admin-event", Subject: "[HS] Event to review: " + e.Title, Text: body})
+	a.notify("admin-event", "[HS] Event to review: "+e.Title, body)
 }
 
 type listingSub struct {
@@ -99,7 +105,7 @@ func (a *App) notifyAdminListing(id string) {
 	body := fmt.Sprintf("Listing submission #%d (%s)\nName: %s\nCategory: %s · Town: %s\nWhen: %s\nCost: %s\nWebsite: %s\nAudience: %s\nSubmitted by: %s\n\n%s\n\nBlock for data/data.js:\n\n%s\n\nMark handled: %s\nReject: %s\n\nQueue: %s\n",
 		s.ID, kind, s.Name, s.Category, s.Town, s.Schedule, s.Cost, s.Website, s.Audience, s.Submitter, s.Summary, s.DataJS(),
 		a.moderateURL("listing", fmt.Sprint(s.ID), "accept"), a.moderateURL("listing", fmt.Sprint(s.ID), "reject"), a.adminURL())
-	_ = a.send(Message{To: a.cfg.AdminEmail, Kind: "admin-listing", Subject: "[HS] Listing to review: " + s.Name, Text: body})
+	a.notify("admin-listing", "[HS] Listing to review: "+s.Name, body)
 }
 
 // decide applies a moderation action. Returns a human sentence for the page.
@@ -135,134 +141,14 @@ func (a *App) decide(kind, id, action string) (string, error) {
 	return "", fmt.Errorf("unknown action")
 }
 
-func (a *App) moderateLink(w http.ResponseWriter, r *http.Request) {
-	p, err := a.consume(r.URL.Query().Get("t"), "moderate")
-	if err != nil {
-		a.page(w, 400, "Link invalid", "This moderation link is invalid, expired or already used.", "")
-		return
-	}
-	parts := strings.SplitN(p.Subject, "|", 3)
-	if len(parts) != 3 {
-		a.page(w, 400, "Link invalid", "Malformed link.", "")
-		return
-	}
-	msg, err := a.decide(parts[0], parts[1], parts[2])
-	if err != nil {
-		a.logf("moderate: %v", err)
-		a.page(w, 500, "Error", "Something went wrong applying that decision.", "")
-		return
-	}
-	a.page(w, 200, "Done", msg, a.adminURL())
-}
-
-func (a *App) adminLogin(w http.ResponseWriter, r *http.Request) {
-	var q struct {
-		Email string `json:"email"`
-	}
-	if err := readJSON(r, &q); err != nil {
-		a.fail(w, 400, err.Error())
-		return
-	}
-	// Same answer whether or not the address matches, so nothing is learnt.
-	if normEmail(q.Email) == a.cfg.AdminEmail {
-		_ = a.send(Message{To: a.cfg.AdminEmail, Kind: "admin-login", Subject: "[HS] Your moderation link",
-			Text: "Open the moderation queue (valid 12 hours):\n\n" + a.adminURL() + "\n\nIf you did not request this, ignore it.\n"})
-	}
-	a.ok(w, "If that is the admin address, a link is on its way.")
-}
-
-type queueView struct {
-	Token           string
-	Events          []Event
-	Listings        []listingSub
-	Approved        int
-	SubsConfirmed   int
-	SubsPending     int
-	Sources         []sourceRow
-	MailFailures    []mailRow
-	Message         string
-	Version         string
-	LastDigestDaily string
-	LastDigestWeek  string
-	LastWatch       string
-}
-
-type mailRow struct{ Kind, SentAt, Err string }
-
-func (a *App) adminQueue(w http.ResponseWriter, r *http.Request) {
-	t := r.URL.Query().Get("t")
-	if _, err := a.verify(t, "admin"); err != nil {
-		a.page(w, 401, "Sign in", "This link is invalid or has expired. Request a new one from the site's moderation page.", "")
-		return
-	}
-	a.renderQueue(w, t, r.URL.Query().Get("msg"))
-}
-
-func (a *App) renderQueue(w http.ResponseWriter, t, msg string) {
-	v := queueView{Token: t, Message: clean(msg, 200), Version: a.version}
-	v.Events, _ = a.queryEvents(`status = 'pending_review'`)
-	v.Listings, _ = a.listingSubs(`status = 'pending_review'`)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM events WHERE status='approved'`).Scan(&v.Approved)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NOT NULL`).Scan(&v.SubsConfirmed)
-	_ = a.db.QueryRow(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NULL`).Scan(&v.SubsPending)
-	v.Sources, _ = a.sourceRows()
-	rows, err := a.db.Query(`SELECT kind, sent_at, err FROM mail_log WHERE ok = 0 ORDER BY sent_at DESC LIMIT 10`)
-	if err == nil {
-		for rows.Next() {
-			var m mailRow
-			_ = rows.Scan(&m.Kind, &m.SentAt, &m.Err)
-			v.MailFailures = append(v.MailFailures, m)
-		}
-		rows.Close()
-	}
-	v.LastDigestDaily = a.metaGet("last:digest:daily")
-	v.LastDigestWeek = a.metaGet("last:digest:weekly")
-	v.LastWatch = a.metaGet("last:watch")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := a.tmpl.ExecuteTemplate(w, "queue", v); err != nil {
-		a.logf("queue template: %v", err)
-	}
-}
-
-func (a *App) adminAct(w http.ResponseWriter, r *http.Request) {
-	if err := r.ParseForm(); err != nil {
-		a.fail(w, 400, "bad form")
-		return
-	}
-	t := r.PostForm.Get("t")
-	if _, err := a.verify(t, "admin"); err != nil {
-		a.page(w, 401, "Sign in", "This link is invalid or has expired.", "")
-		return
-	}
-	action := r.PostForm.Get("action")
-	var msg string
-	var err error
-	switch action {
-	case "approve", "reject":
-		msg, err = a.decide("event", r.PostForm.Get("id"), action)
-	case "accept", "reject-listing":
-		msg, err = a.decide("listing", r.PostForm.Get("id"), strings.TrimSuffix(action, "-listing"))
-	case "watch":
-		msg = a.runWatch("manual")
-	case "digest-preview":
-		n, sendErr := a.runDigest("weekly", true)
-		msg = fmt.Sprintf("Preview digest sent to the admin address (%d events).", n)
-		if sendErr != nil {
-			msg = "Preview failed: " + sendErr.Error()
-		}
-	default:
-		err = fmt.Errorf("unknown action")
-	}
-	if err != nil {
-		a.logf("adminAct %s: %v", action, err)
-		msg = "Error: " + err.Error()
-	}
-	http.Redirect(w, r, a.cfg.APIURL+"/api/admin?t="+t+"&msg="+template.URLQueryEscaper(msg), http.StatusSeeOther)
-}
-
-// page is the plain HTML used for link landings that are not on the site.
+// page is the plain HTML used for link landings and refusals outside the console.
 func (a *App) page(w http.ResponseWriter, status int, title, body, queue string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	_ = a.tmpl.ExecuteTemplate(w, "page", map[string]any{"Title": title, "Body": body, "Queue": queue, "Site": a.cfg.SiteURL})
+}
+
+// legacyAdminLink answers links from emails sent before the console existed.
+func (a *App) legacyAdminLink(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/admin/login?msg="+url.QueryEscape("That link is from the old moderation flow. Sign in and use the queue instead."), http.StatusSeeOther)
 }

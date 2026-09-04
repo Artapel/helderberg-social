@@ -2,7 +2,10 @@ module helderbergsocial.co.za/api
 
 go 1.24
 
-require modernc.org/sqlite v1.38.2
+require (
+	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	modernc.org/sqlite v1.38.2
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect

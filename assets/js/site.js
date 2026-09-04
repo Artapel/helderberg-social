@@ -213,6 +213,47 @@
     fn(false);
     if (loaded) { if (changed) fn(true); } else hooks.push(fn);
   };
+  /* Site-wide switches the admin sets in the console: announcement banner,
+     maintenance mode, paused forms. They ride along on /api/events. */
+  HS.site = null;
+  var siteHooks = [];
+  HS.onSite = function (fn) { if (HS.site) fn(HS.site); else siteHooks.push(fn); };
+  function applySite(site) {
+    if (!site || typeof site !== "object") return;
+    HS.site = site;
+    var old = document.getElementById("hs-announce");
+    if (old) old.remove();
+    var a = site.announcement;
+    if (a && a.text) {
+      var bar = document.createElement("div");
+      bar.id = "hs-announce"; bar.className = "announce";
+      bar.innerHTML = '<div class="wrap">' + HS.esc(a.text) + (a.link && /^https?:\/\//.test(a.link) ? ' <a href="' + HS.esc(a.link) + '" target="_blank" rel="noopener">More</a>' : "") + "</div>";
+      var h = document.querySelector("[data-hs-header]");
+      if (h && h.parentNode) h.parentNode.insertBefore(bar, h.nextSibling); else document.body.insertBefore(bar, document.body.firstChild);
+    }
+    document.querySelectorAll("form[data-gate]").forEach(function (f) {
+      var gate = f.getAttribute("data-gate"), open = site[gate] !== false;
+      var n = f.querySelector(".gate-notice");
+      if (!open) {
+        if (!n) { n = document.createElement("p"); n.className = "notice gate-notice"; f.insertBefore(n, f.firstChild); }
+        n.textContent = site.maintenance ? (site.maintenanceText || "We are doing a little maintenance. Please try again in a few minutes.") : "This form is paused for the moment. Please try again later.";
+      } else if (n) n.remove();
+      f.querySelectorAll("button[type=submit],button:not([type])").forEach(function (b) { b.disabled = !open; });
+    });
+    var sh = siteHooks; siteHooks = [];
+    sh.forEach(function (fn) { fn(site); });
+  }
+  /* One tiny page-view beacon per page: the path only. No cookie, no id,
+     no referrer; the server hashes the connection with a daily salt. */
+  HS.ping = function () {
+    if (!HS.api || !window.fetch) return;
+    var p = location.pathname.replace(/\/index\.html$/, "/") || "/";
+    if (p.length > 80) p = p.slice(0, 80);
+    try {
+      fetch(HS.api + "/api/ping", { method: "POST", credentials: "omit", mode: "cors", keepalive: true,
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ p: p }) }).catch(function () {});
+    } catch (e) {}
+  };
   function mergeEvents(list) {
     var diff = false;
     (list || []).forEach(function (e) {
@@ -229,25 +270,28 @@
     if (!HS.api || !window.fetch) { loaded = true; return; }
     var key = "hs-events-v1", cached = null;
     try { cached = JSON.parse(sessionStorage.getItem(key) || "null"); } catch (e) {}
-    var apply = function (list) {
+    var apply = function (list, site) {
+      applySite(site);
       changed = mergeEvents(list) || changed;
       loaded = true;
       var h = hooks; hooks = [];
       if (changed) { h.forEach(function (fn) { fn(true); }); HS.updateCounts(); }
     };
-    if (cached && cached.at && Date.now() - cached.at < 5 * 60 * 1000 && Array.isArray(cached.events)) { apply(cached.events); return; }
+    if (cached && cached.at && Date.now() - cached.at < 5 * 60 * 1000 && Array.isArray(cached.events)) { apply(cached.events, cached.site); return; }
     var ctrl = window.AbortController ? new AbortController() : null;
     if (ctrl) setTimeout(function () { ctrl.abort(); }, 6000);
     fetch(HS.api + "/api/events", { credentials: "omit", mode: "cors", signal: ctrl && ctrl.signal, headers: { "Accept": "application/json" } })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         var list = j && Array.isArray(j.events) ? j.events : [];
-        try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), events: list })); } catch (e) {}
-        apply(list);
+        var site = j && j.site && typeof j.site === "object" ? j.site : null;
+        try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), events: list, site: site })); } catch (e) {}
+        apply(list, site);
       })
       .catch(function () { apply([]); });
   };
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", HS.renderChrome); else HS.renderChrome();
   HS.loadEvents();
+  HS.ping();
 })();

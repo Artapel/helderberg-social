@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -77,6 +78,15 @@ func latestMail(t *testing.T, dir, kind string) (string, string) {
 	// contexts; the text part is first and unescaped, so the first match wins.
 	link := linkRe.FindString(body)
 	return body, link
+}
+
+func latestMailMaybe(dir, kind string) (string, error) {
+	files, _ := filepath.Glob(filepath.Join(dir, "*-"+kind+"-*.eml"))
+	if len(files) == 0 {
+		return "", fmt.Errorf("no %s mail", kind)
+	}
+	raw, err := os.ReadFile(files[len(files)-1])
+	return string(raw), err
 }
 
 func TestTokens(t *testing.T) {
@@ -240,19 +250,13 @@ func TestEventSubmissionModeration(t *testing.T) {
 		t.Fatal("unapproved event visible")
 	}
 	body, _ := latestMail(t, mail, "admin-event")
-	links := linkRe.FindAllString(body, -1)
-	var approve string
-	for _, l := range links {
-		if strings.Contains(l, "/api/moderate?") {
-			approve = l
-			break
-		}
-	}
+	approve := regexp.MustCompile(`https://api\.helderbergsocial\.co\.za/admin/moderate\?t=[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+`).FindString(body)
 	if approve == "" {
 		t.Fatalf("no approve link in admin mail:\n%s", body)
 	}
-	if rr := get(t, h, strings.TrimPrefix(approve, a.cfg.APIURL)); rr.Code != 200 || !strings.Contains(rr.Body.String(), "approved") {
-		t.Fatalf("approve: %d %s", rr.Code, rr.Body)
+	admin, _ := login(t, a, mail, "10.2.0.1")
+	if rr := admin.do("GET", strings.TrimPrefix(approve, a.cfg.APIURL), nil); rr.Code != 303 || !strings.Contains(rr.Header().Get("Location"), "approved") {
+		t.Fatalf("approve: %d %s", rr.Code, rr.Header().Get("Location"))
 	}
 	rr = get(t, h, "/api/events")
 	if !strings.Contains(rr.Body.String(), "Trail run \\u003cb\\u003ebold") && !strings.Contains(rr.Body.String(), "Trail run <b>bold") {
@@ -275,7 +279,7 @@ func TestEventSubmissionModeration(t *testing.T) {
 		t.Fatal("approved event not in public list")
 	}
 	// Second use of the approve link must be refused.
-	if rr := get(t, h, strings.TrimPrefix(approve, a.cfg.APIURL)); rr.Code != 400 {
+	if rr := admin.do("GET", strings.TrimPrefix(approve, a.cfg.APIURL), nil); !strings.Contains(rr.Header().Get("Location"), "err=1") {
 		t.Fatal("moderation link replayable")
 	}
 	// Bad payloads.
@@ -323,16 +327,28 @@ func TestListingSubmissionAndAdminQueue(t *testing.T) {
 		t.Fatal("login mail sent to non-admin")
 	}
 	post(t, h, "/api/admin/login", map[string]any{"email": "admin@example.org"}, a.cfg.SiteURL)
-	_, adminLink := latestMail(t, mail, "admin-login")
-	rr := get(t, h, strings.TrimPrefix(adminLink, a.cfg.APIURL))
+	body, _ = latestMail(t, mail, "admin-login")
+	if !strings.Contains(body, "/admin/auth?t=") {
+		t.Fatalf("site login mail lacks console link:\n%s", body)
+	}
+	admin, csrf := login(t, a, mail, "10.3.0.1")
+	rr := admin.do("GET", "/admin/queue", nil)
 	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "Strand Bridge Club") {
 		t.Fatalf("queue page: %d", rr.Code)
 	}
-	if rr.Header().Get("Content-Security-Policy") == "" || rr.Header().Get("X-Content-Type-Options") != "nosniff" {
+	if !strings.Contains(rr.Header().Get("Content-Security-Policy"), "default-src 'none'") || rr.Header().Get("X-Content-Type-Options") != "nosniff" {
 		t.Fatal("security headers missing")
 	}
-	if get(t, h, "/api/admin?t=garbage").Code != 401 {
-		t.Fatal("bad admin token accepted")
+	var id int64
+	a.db.QueryRow(`SELECT id FROM listing_submissions WHERE name='Strand Bridge Club'`).Scan(&id)
+	if rr = admin.do("POST", "/admin/do", url.Values{"action": {"accept"}, "csrf": {csrf}, "id": {fmt.Sprint(id)}, "return": {"/admin/queue"}}); rr.Code != 303 || strings.Contains(rr.Header().Get("Location"), "err=1") {
+		t.Fatalf("accept: %d %s", rr.Code, rr.Header().Get("Location"))
+	}
+	if a.count(`SELECT COUNT(*) FROM listing_submissions WHERE status='accepted'`) != 1 {
+		t.Fatal("listing not accepted")
+	}
+	if get(t, h, "/api/admin?t=garbage").Code != 303 {
+		t.Fatal("legacy admin link did not redirect")
 	}
 }
 

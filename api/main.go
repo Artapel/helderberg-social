@@ -21,17 +21,21 @@ import (
 var version = "dev" // set at build time with -ldflags "-X main.version=…"
 
 type App struct {
-	cfg     *Config
-	db      *sql.DB
-	mailer  Mailer
-	tmpl    *template.Template
-	limGet  *limiter
-	limPost *limiter
-	watchMu sync.Mutex
-	version string
+	cfg      *Config
+	db       *sql.DB
+	mailer   Mailer
+	tmpl     *template.Template
+	limGet   *limiter
+	limPost  *limiter
+	limAdmin *limiter
+	watchMu  sync.Mutex
+	version  string
+	// console
+	ctmpl *template.Template
+	stats *stats
+	tries tryCounter
+	block blocklist
 }
-
-func (a *App) logf(format string, args ...any) { log.Printf(format, args...) }
 
 func newApp(cfg *Config) (*App, error) {
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
@@ -41,8 +45,15 @@ func newApp(cfg *Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{cfg: cfg, db: db, tmpl: parseTemplates(), version: version,
-		limGet: newLimiter(60, 30), limPost: newLimiter(6, 6)}
+	a := &App{cfg: cfg, db: db, tmpl: parseTemplates(), ctmpl: parseConsole(), stats: newStats(), version: version,
+		limGet: newLimiter(60, 30), limPost: newLimiter(6, 6), limAdmin: newLimiter(120, 60)}
+	a.loadBlocklist()
+	if cfg.TOTPReset {
+		a.totpReset()
+		_, _ = a.db.Exec(`UPDATE sessions SET revoked = 1`)
+		a.audit(nil, "totp.reset", "", "HS_TOTP_RESET=1 at start-up; remove the variable now")
+		a.logf("WARNING: HS_TOTP_RESET=1 wiped the authenticator; unset it and restart")
+	}
 	if cfg.DevMailDir != "" {
 		a.mailer = &fileMailer{dir: cfg.DevMailDir, from: cfg.MailFrom}
 	} else {
@@ -98,6 +109,7 @@ func main() {
 	shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(shutdown)
+	app.flushStats()
 	_ = app.db.Close()
 	fmt.Println("stopped")
 }

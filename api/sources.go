@@ -143,12 +143,17 @@ func (a *App) fetch(url string) ([]byte, error) {
 
 // runWatch checks every enabled source once and returns a one-line summary.
 // The admin gets an email only when there is something to act on.
-func (a *App) runWatch(reason string) string {
+func (a *App) runWatch(reason string) string { return a.runWatchWhere(reason, "enabled = 1") }
+
+// runWatchOne checks a single source regardless of its enabled flag.
+func (a *App) runWatchOne(id string) string { return a.runWatchWhere("manual", "id = ?", id) }
+
+func (a *App) runWatchWhere(reason, where string, args ...any) string {
 	if !a.watchMu.TryLock() {
 		return "A check is already running."
 	}
 	defer a.watchMu.Unlock()
-	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, last_hash FROM sources WHERE enabled = 1`)
+	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, last_hash FROM sources WHERE `+where, args...)
 	if err != nil {
 		a.logf("watch: %v", err)
 		return "error: " + err.Error()
@@ -247,12 +252,16 @@ func (a *App) runWatch(reason string) string {
 		}
 		time.Sleep(1500 * time.Millisecond) // one request at a time, politely spaced
 	}
-	_ = a.metaSet("last:watch", now())
+	if where == "enabled = 1" {
+		_ = a.metaSet("last:watch", now())
+	}
 	summary := fmt.Sprintf("Checked %d sources (%s): %d new events queued, %d pages changed, %d errors.", len(list), reason, newEvents, changed, errs)
 	a.logf("watch: %s", summary)
 	if newEvents > 0 || changed > 0 || (errs > 0 && reason != "scheduled") {
 		body := summary + "\n\n" + strings.Join(report, "\n") + "\n\nQueue: " + a.adminURL() + "\n"
-		_ = a.send(Message{To: a.cfg.AdminEmail, Kind: "watch", Subject: fmt.Sprintf("[HS] Source check: %d new, %d changed", newEvents, changed), Text: body})
+		for _, to := range a.notifyList() {
+			_ = a.send(Message{To: to, Kind: "watch", Subject: fmt.Sprintf("[HS] Source check: %d new, %d changed", newEvents, changed), Text: body})
+		}
 	}
 	return summary
 }

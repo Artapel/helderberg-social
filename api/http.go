@@ -31,10 +31,11 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("POST /api/submit/event", a.submitEvent)
 	mux.HandleFunc("POST /api/submit/listing", a.submitListing)
 	mux.HandleFunc("GET /api/verify", a.verifySubmission)
-	mux.HandleFunc("GET /api/moderate", a.moderateLink)
+	mux.HandleFunc("POST /api/ping", a.ping)
 	mux.HandleFunc("POST /api/admin/login", a.adminLogin)
-	mux.HandleFunc("GET /api/admin", a.adminQueue)
-	mux.HandleFunc("POST /api/admin/act", a.adminAct)
+	mux.HandleFunc("GET /api/moderate", a.legacyAdminLink)
+	mux.HandleFunc("GET /api/admin", a.legacyAdminLink)
+	a.registerConsole(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { a.fail(w, 404, "not found") })
 	return a.middleware(mux)
 }
@@ -52,13 +53,21 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "no-referrer")
 		h.Set("X-Frame-Options", "DENY")
-		h.Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+		csp := "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		if strings.HasPrefix(r.URL.Path, "/admin") {
+			csp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
+		}
+		h.Set("Content-Security-Policy", csp)
 		h.Set("Strict-Transport-Security", "max-age=31536000")
 		h.Set("Cache-Control", "no-store")
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 
 		ip := a.clientIP(r)
 		r = r.WithContext(context.WithValue(r.Context(), ipKey, ip))
+		if a.isBlocked("ip", ipTag(ip)) {
+			a.fail(w, 403, "forbidden")
+			return
+		}
 
 		// CORS: only the site itself may call from a browser.
 		if origin := r.Header.Get("Origin"); origin != "" {
@@ -77,20 +86,38 @@ func (a *App) middleware(next http.Handler) http.Handler {
 			w.WriteHeader(204)
 			return
 		}
+		// Three buckets per client: public writes are tight (and so are the
+		// sign-in POSTs, against brute force), the signed-in console is roomy,
+		// everything else is the read bucket.
 		lim := a.limGet
-		if r.Method == http.MethodPost {
+		p := r.URL.Path
+		switch {
+		case r.Method == http.MethodPost && (p == "/admin/login" || p == "/admin/enrol" || p == "/admin/2fa" || (strings.HasPrefix(p, "/api/") && p != "/api/ping")):
 			lim = a.limPost
+		case strings.HasPrefix(p, "/admin"):
+			lim = a.limAdmin
 		}
 		if !lim.allow(ip) {
 			h.Set("Retry-After", "60")
 			a.fail(w, 429, "too many requests, slow down")
 			return
 		}
+		if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/ping" && a.settingBool("maintenance") {
+			h.Set("Retry-After", "600")
+			a.fail(w, 503, a.setting("maintenance_text"))
+			return
+		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
 		sw := &statusWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(sw, r)
+		ms := time.Since(start).Milliseconds()
+		route := r.Pattern
+		if route == "" || route == "/" {
+			route = "other"
+		}
 		if r.URL.Path != "/api/health" {
-			a.logf("%s %s %d %dms %s", r.Method, r.URL.Path, sw.status, time.Since(start).Milliseconds(), ipTag(ip))
+			a.stats.request(a.localDay(start), route, sw.status, reqEntry{At: start, Method: r.Method, Path: clean(r.URL.Path, 80), Status: sw.status, Ms: ms, IP: ipTag(ip)})
+			a.logf("%s %s %d %dms %s", r.Method, r.URL.Path, sw.status, ms, ipTag(ip))
 		}
 	})
 }
@@ -182,7 +209,7 @@ func (a *App) health(w http.ResponseWriter, r *http.Request) {
 func (a *App) getEvents(w http.ResponseWriter, r *http.Request) {
 	today := time.Now().In(a.cfg.TZ)
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, a.cfg.TZ)
-	evs, err := a.approvedEvents(today, 400)
+	evs, err := a.approvedEvents(today, a.settingInt("events_window_days"))
 	if err != nil {
 		a.logf("events: %v", err)
 		a.fail(w, 500, "internal error")
@@ -191,7 +218,7 @@ func (a *App) getEvents(w http.ResponseWriter, r *http.Request) {
 	if evs == nil {
 		evs = []Event{}
 	}
-	body, _ := json.Marshal(map[string]any{"ok": true, "events": evs, "generated": now()})
+	body, _ := json.Marshal(map[string]any{"ok": true, "events": evs, "generated": now(), "site": a.siteInfo()})
 	sum := sha256.Sum256(body)
 	etag := `"` + hex.EncodeToString(sum[:8]) + `"`
 	w.Header().Set("ETag", etag)
@@ -223,9 +250,17 @@ func (a *App) subscribe(w http.ResponseWriter, r *http.Request) {
 		a.ok(w, "Check your inbox for a confirmation email.")
 		return
 	}
+	if !a.settingBool("subscriptions_on") {
+		a.fail(w, 503, "New subscriptions are paused for the moment. Please try again later.")
+		return
+	}
 	email := normEmail(q.Email)
 	if !validEmail(email) {
 		a.fail(w, 400, "That email address does not look right.")
+		return
+	}
+	if a.isBlocked("email", emailHash(email)) {
+		a.ok(w, "Check your inbox for a confirmation email.")
 		return
 	}
 	if q.Frequency != "daily" && q.Frequency != "weekly" {
@@ -346,6 +381,14 @@ func (a *App) submitEvent(w http.ResponseWriter, r *http.Request) {
 		a.ok(w, "Check your inbox to confirm your submission.")
 		return
 	}
+	if !a.settingBool("submissions_on") {
+		a.fail(w, 503, "Submissions are paused for the moment. Please try again later.")
+		return
+	}
+	if a.isBlocked("email", emailHash(normEmail(q.Email))) {
+		a.ok(w, "Check your inbox to confirm your submission.")
+		return
+	}
 	e := Event{
 		Title:    clean(q.Title, 120),
 		Date:     strings.TrimSpace(q.Date),
@@ -439,6 +482,14 @@ func (a *App) submitListing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if q.Honeypot != "" {
+		a.ok(w, "Check your inbox to confirm your submission.")
+		return
+	}
+	if !a.settingBool("submissions_on") {
+		a.fail(w, 503, "Submissions are paused for the moment. Please try again later.")
+		return
+	}
+	if a.isBlocked("email", emailHash(normEmail(q.Email))) {
 		a.ok(w, "Check your inbox to confirm your submission.")
 		return
 	}

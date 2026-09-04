@@ -195,6 +195,9 @@ label { font-weight: 600; font-size: .88rem; display: block; margin-bottom: .3re
 .kv dd { margin: 0; }
 .notice { border-left: 4px solid var(--warn); background: color-mix(in srgb, var(--warn) 10%, transparent); padding: .7rem .9rem; border-radius: 8px; font-size: .88rem; }
 .notice.ok { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.announce { background: var(--accent, #f26b3a); color: #fff; font-size: .9rem; font-weight: 500; }
+.announce .wrap { padding: .5rem 1rem; }
+.announce a { color: #fff; text-decoration: underline; margin-left: .4rem; }
 
 /* Towns */
 .town { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: center; padding: 1.5rem 0; border-bottom: 1px solid var(--line); }
