@@ -21,7 +21,8 @@ in its `<title>` and `--screenshot`.
 
 - **Name:** Helderberg Social. *Still "Helderberg Socials, Events and Activities" (2026-09-04);
   a rename goes through Meta review, Corne's call.*
-- **Username / vanity URL:** `helderbergsocial` (fallback `helderbergsocialza`) — not set yet
+- **Username / vanity URL:** `helderbergsocial` (DONE 2026-09-04; https://www.facebook.com/helderbergsocial
+  resolves; the site footer links it)
 - **Category:** Community Organization + Local & travel website (DONE 2026-09-04; Facebook has no
   plain "Community" or "Website" category)
 - **Bio (101 chars max, DONE 2026-09-04):** Groups, clubs, markets, trails and what's on this weekend in Somerset West, Strand & Gordon's Bay.
@@ -42,12 +43,19 @@ in its `<title>` and `--screenshot`.
   WhatsApp button that pointed at Corne's personal number)
 - **Hours:** Always open (it is a website)
 - **Privacy:** post visibility Public; profile visibility Public; page transparency on
-- **Settings -> Page setup -> Audience and visibility:** Followers can comment: yes; profanity
-  filter: strong; hide comments containing links from strangers: on
-- **Messaging:** instant reply on, text: "Thanks for the message. Helderberg Social is run by
-  volunteers so replies can take a day or two. To add a group, place or event go to
-  helderbergsocial.co.za/submit.html — it is free."
-- **Tabs to keep:** Posts, About, Events, Photos; hide Reviews (nothing to review) and Shop
+- **Settings (DONE 2026-09-04):** Followers and public content -> "Hide posts and comments with
+  profanity" ON. Page and tagging -> "Who can post on your Page" = Only me (visitors comment,
+  they do not post); reviews OFF; "Review posts you're tagged in" ON. There is no "hide comments
+  with links" switch in the current settings UI; the keyword filter ("Hide comments containing
+  certain words") is left off.
+- **Messaging (DONE 2026-09-04):** Meta Business Suite -> Inbox -> Automations -> "Auto reply"
+  is ON with: "Thanks for the message. Helderberg Social is run by volunteers so replies can take
+  a day or two. To add a group, place or event go to helderbergsocial.co.za/submit.html - it is
+  free." (Business Suite silently created the automation with its default text on the first
+  toggle click and refused the edit until the page was reloaded with the automation id in the
+  URL; if "Change not saved" appears, reload and edit again.)
+- **Tabs:** the current Pages UI has no tab picker; Reviews is hidden by the reviews switch
+  above and no Shop exists.
 
 ## First posts (in this order, one per day)
 

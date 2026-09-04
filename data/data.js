@@ -20,9 +20,7 @@ window.HS_DATA = {
     submitEmail: "",
     contactEmail: "",
     // Where the site lives on social media. Rendered in the footer and used for sharing.
-    social: { facebook: "https://www.facebook.com/profile.php?id=61594290261232" },
-    // Where the site lives on social media. Rendered in the footer and used for sharing.
-    social: { facebook: "https://www.facebook.com/profile.php?id=61594290261232" },
+    social: { facebook: "https://www.facebook.com/helderbergsocial" },
     region: "Helderberg, Western Cape",
     center: [-34.12, 18.86],
     zoom: 12
