@@ -11,6 +11,9 @@ record, repoints www. Leaves SOA, NS, mail and ftp records alone. With --mail it
 the records the API wants published from https://api.helderbergsocial.co.za/api/mail-dns
 (or --mail-json <file> for a saved copy), adds the SPF, DKIM and DMARC TXT records and
 replaces the MX with a null MX ("0 .", RFC 7505: the domain sends but never receives).
+HostAfrica rejects "." as an MX exchange ("Supplied exchange for MX record is invalid",
+seen 2026-09-04), in which case the MX is deleted instead: no MX means receivers fall back
+to the A record, which is the web host and does not listen on 25, so the effect is the same.
 
 API shapes from https://api.hostafrica.com/docs/ (embedded OpenAPI, read 2026-09-03):
     POST /dns/list-zones                            -> data.zones[{domain_id, zone_id, domain_name}]
@@ -163,11 +166,15 @@ if MAIL:
                 continue
             if not mxs:
                 print(f"add    MX    {name} -> 0 .  (null MX)")
-                mutate("/dns/add-record", {"name": name, "type": "MX", "content": "0 .", "ttl": TTL}, fatal=False)
+                if not mutate("/dns/add-record", {"name": name, "type": "MX", "content": "0 .", "ttl": TTL}, fatal=False):
+                    print("       registrar rejects a null MX; leaving the zone with no MX, which has the same effect")
                 continue
             print(f"edit   MX    {name} -> 0 .  (null MX; was {mxs[0]['content']})")
-            mutate("/dns/edit-record", dict(mxs[0], content="0 ."), fatal=False)
-            for extra in mxs[1:]:
+            if mutate("/dns/edit-record", dict(mxs[0], content="0 ."), fatal=False):
+                mxs = mxs[1:]
+            else:
+                print("       registrar rejects a null MX; deleting the MX instead (no MX = replies fall back to the web host's A record and fail fast)")
+            for extra in mxs:
                 print(f"delete MX    {name} -> {extra['content']}")
                 mutate("/dns/delete-record", extra, fatal=False)
         else:

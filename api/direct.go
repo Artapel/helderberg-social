@@ -209,9 +209,18 @@ func (a *App) mailRecords() []mailRecord {
 	for _, mx := range mxs {
 		mxHave = append(mxHave, fmt.Sprintf("%d %s", mx.Pref, mx.Host))
 	}
+	// Null MX ("0 .") is the clean answer; a zone with no MX at all is the
+	// next best (HostAfrica's validator rejects "." as an exchange), since
+	// receivers then fall back to the A record, which does not listen on 25.
+	// What is NOT fine is an MX pointing at a host that silently swallows
+	// or times out, which is what the registrar's default apex MX does.
 	nullMX := len(mxs) == 1 && mxs[0].Host == "."
-	out = append(out, mailRecord{Name: domain, Type: "MX", Want: "0 .  (null MX: the domain sends but does not receive)", Have: strings.Join(mxHave, ", "),
-		Why: "MX: where inbound mail goes; a null MX makes replies bounce cleanly instead of timing out", OK: nullMX || (len(mxs) > 0 && !strings.Contains(mxHave[0], domain))})
+	haveTxt := strings.Join(mxHave, ", ")
+	if len(mxs) == 0 {
+		haveTxt = "no MX record (receivers fall back to the A record)"
+	}
+	out = append(out, mailRecord{Name: domain, Type: "MX", Want: "0 .  (null MX), or no MX at all where the registrar rejects that", Have: haveTxt,
+		Why: "MX: where inbound mail goes; the domain sends but does not receive, so say so instead of pointing at the web host", OK: nullMX || len(mxs) == 0})
 	if a.cfg.MailIP != "" {
 		names, _ := res.LookupAddr(ctx, a.cfg.MailIP)
 		out = append(out, mailRecord{Name: a.cfg.MailIP, Type: "PTR", Want: "any hostname that resolves back to " + a.cfg.MailIP, Have: strings.Join(names, ", "),
