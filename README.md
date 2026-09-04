@@ -12,7 +12,7 @@ folder with any web server.
 |---|---|
 | `data/data.js` | **All content.** Site settings, towns, categories, audiences, listings, events. Edit this to change what the site shows. |
 | `assets/css/site.css` | Styles. Light and dark themes via CSS custom properties. |
-| `assets/js/site.js` | Shared runtime: header/footer, search, cards, event rows, ICS export, Leaflet map helper. |
+| `assets/js/site.js` | Shared runtime: header/footer, search, cards, event rows (Google Calendar link + .ics download, share menu, `events.html?ev=<id>` permalinks), Leaflet map helper. |
 | `index.html` | Home: search, category tiles, this weekend, featured groups, towns. |
 | `directory.html` | Filterable directory (search, category, town, audience, cost, type), list or map view, URL-addressable filters. |
 | `events.html` | Dated events grouped by month, plus weekly fixtures by day. |

@@ -29,7 +29,8 @@
 
   HS.qs = function () { return new URLSearchParams(location.search); };
   HS.setQs = function (params) {
-    var p = new URLSearchParams();
+    var p = new URLSearchParams(), keep = HS.qs().get("ev");
+    if (keep) p.set("ev", keep);
     Object.keys(params).forEach(function (k) { if (params[k] !== "" && params[k] != null) p.set(k, params[k]); });
     var s = p.toString();
     history.replaceState(null, "", location.pathname + (s ? "?" + s : ""));
@@ -81,23 +82,148 @@
       return d.indexOf(6) !== -1 || d.indexOf(0) !== -1 || d.indexOf(5) !== -1;
     });
   };
-  HS.icsFor = function (ev) {
+  /* ---------- Calendar ----------
+     Times in data are local Helderberg times with no zone; both the Google
+     link (ctz=) and the .ics (TZID=) say so explicitly, so a phone set to
+     another zone still files the event at the right local hour. */
+  HS.TZ = "Africa/Johannesburg";
+  HS.calTimes = function (ev) {
     var dt = function (iso, t) { var d = iso.replace(/-/g, ""); return t ? d + "T" + t.replace(":", "") + "00" : d; };
     var end = ev.endDate || ev.date;
-    var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Helderberg Social//EN", "BEGIN:VEVENT",
-      "UID:" + ev.id + "@" + (D.site.domain || "helderbergsocial.local"),
-      "DTSTAMP:" + dt(new Date().toISOString().slice(0, 10)) + "T000000Z",
-      ev.time ? "DTSTART:" + dt(ev.date, ev.time) : "DTSTART;VALUE=DATE:" + dt(ev.date),
-      ev.time ? "DTEND:" + dt(end, ev.endTime || ev.time) : "DTEND;VALUE=DATE:" + dt(HS.plusDay(end)),
-      "SUMMARY:" + ev.title.replace(/,/g, "\\,"),
-      "DESCRIPTION:" + (ev.summary || "").replace(/,/g, "\\,") + (ev.website ? "\\n" + ev.website : ""),
-      "LOCATION:" + HS.townName(ev.town) + "\\, Helderberg",
-      "END:VEVENT", "END:VCALENDAR"];
-    return "data:text/calendar;charset=utf-8," + encodeURIComponent(lines.join("\r\n"));
+    if (ev.time) {
+      var endT = ev.endTime || (end === ev.date ? HS.plusHours(ev.time, 2) : ev.time);
+      return { timed: true, start: dt(ev.date, ev.time), end: dt(end, endT) };
+    }
+    return { timed: false, start: dt(ev.date), end: dt(HS.plusDay(end)) };
   };
-  HS.plusDay = function (iso) { var d = HS.parseDate(iso); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
+  HS.plusHours = function (hhmm, n) {
+    var p = hhmm.split(":").map(Number), h = Math.min(23, (p[0] || 0) + n), m = p[1] || 0;
+    return (h < 10 ? "0" : "") + h + ":" + (m < 10 ? "0" : "") + m;
+  };
+  HS.plusDay = function (iso) { var d = HS.parseDate(iso); d.setDate(d.getDate() + 1); return d.getFullYear() + "-" + (d.getMonth() < 9 ? "0" : "") + (d.getMonth() + 1) + "-" + (d.getDate() < 10 ? "0" : "") + d.getDate(); };
+  HS.calDetails = function (ev) {
+    return (ev.summary || "") + (ev.website ? "\n" + ev.website : "") + "\nFrom Helderberg Social: " + HS.eventURL(ev);
+  };
+  HS.googleCalURL = function (ev) {
+    var t = HS.calTimes(ev);
+    var p = new URLSearchParams({ action: "TEMPLATE", text: ev.title, dates: t.start + "/" + t.end, details: HS.calDetails(ev),
+      location: HS.townName(ev.town) + ", Helderberg, South Africa" });
+    if (t.timed) p.set("ctz", HS.TZ);
+    return "https://calendar.google.com/calendar/render?" + p.toString();
+  };
+  HS.icsText = function (ev) {
+    var t = HS.calTimes(ev);
+    var esc = function (s) { return String(s || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n"); };
+    var stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+Z$/, "Z");
+    var lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Helderberg Social//EN", "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "BEGIN:VEVENT",
+      "UID:" + ev.id + "@" + (D.site.domain || "helderbergsocial.local"),
+      "DTSTAMP:" + stamp,
+      t.timed ? "DTSTART;TZID=" + HS.TZ + ":" + t.start : "DTSTART;VALUE=DATE:" + t.start,
+      t.timed ? "DTEND;TZID=" + HS.TZ + ":" + t.end : "DTEND;VALUE=DATE:" + t.end,
+      "SUMMARY:" + esc(ev.title),
+      "DESCRIPTION:" + esc(HS.calDetails(ev)),
+      "LOCATION:" + esc(HS.townName(ev.town) + ", Helderberg, South Africa"),
+      "URL:" + HS.eventURL(ev),
+      "END:VEVENT", "END:VCALENDAR"];
+    return lines.join("\r\n") + "\r\n";
+  };
+  /* Hands the browser a real file (a data: link is refused by some browsers
+     and mail apps). Falls back to opening the text where blobs are missing. */
+  HS.downloadICS = function (ev) {
+    var text = HS.icsText(ev), name = (ev.id || "event").replace(/[^\w.-]+/g, "-") + ".ics";
+    try {
+      var blob = new Blob([text], { type: "text/calendar;charset=utf-8" });
+      if (window.navigator.msSaveOrOpenBlob) { window.navigator.msSaveOrOpenBlob(blob, name); return; }
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = name; a.rel = "noopener"; a.style.display = "none";
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 4000);
+    } catch (e) {
+      location.href = "data:text/calendar;charset=utf-8," + encodeURIComponent(text);
+    }
+  };
+
+  /* ---------- Sharing ----------
+     Every event has a permanent address on the events page (?ev=id) that
+     scrolls to and highlights it, so a shared link lands on the right thing
+     even though the site is static. */
+  HS.eventURL = function (ev) { return HS.siteURL() + "events.html?ev=" + encodeURIComponent(ev.id); };
+  HS.shareText = function (ev) {
+    return ev.title + " · " + HS.fmtRange(ev) + " · " + HS.townName(ev.town) + (ev.cost === "free" ? " · Free" : "");
+  };
+  HS.shareLinks = function (ev) {
+    var url = HS.eventURL(ev), text = HS.shareText(ev);
+    return {
+      whatsapp: "https://wa.me/?text=" + encodeURIComponent(text + "\n" + url),
+      facebook: "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(url),
+      email: "mailto:?subject=" + encodeURIComponent(ev.title) + "&body=" + encodeURIComponent(text + "\n\n" + url),
+      url: url, text: text
+    };
+  };
+  HS.copyText = function (s) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(s);
+    return new Promise(function (res, rej) {
+      var ta = document.createElement("textarea"); ta.value = s; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy") ? res() : rej(new Error("copy failed")); } catch (e) { rej(e); }
+      document.body.removeChild(ta);
+    });
+  };
+  /* One listener for every event card on every page. Buttons carry
+     data-act and the card carries data-ev; nothing inline, so the CSP holds. */
+  HS.closeMenus = function (except) {
+    document.querySelectorAll(".share-menu.open").forEach(function (m) { if (m !== except) { m.classList.remove("open"); var b = m.parentNode.querySelector("[data-act=share]"); if (b) b.setAttribute("aria-expanded", "false"); } });
+  };
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest("[data-act]") : null;
+    if (!btn) { if (!(e.target.closest && e.target.closest(".share-wrap"))) HS.closeMenus(); return; }
+    var card = btn.closest("[data-ev]"), ev = card && HS.events[card.getAttribute("data-ev")];
+    if (!ev) return;
+    var act = btn.getAttribute("data-act");
+    if (act === "ics") { e.preventDefault(); HS.downloadICS(ev); HS.closeMenus(); return; }
+    if (act === "share") {
+      e.preventDefault();
+      var links = HS.shareLinks(ev);
+      /* The system share sheet only on touch devices: on a desktop it hides
+         the WhatsApp/Facebook/copy choices behind an OS dialog. */
+      var touch = window.matchMedia && matchMedia("(pointer: coarse)").matches;
+      if (touch && navigator.share && (!navigator.canShare || navigator.canShare({ url: links.url }))) {
+        navigator.share({ title: ev.title, text: links.text, url: links.url }).catch(function () {});
+        return;
+      }
+      var menu = btn.parentNode.querySelector(".share-menu");
+      if (!menu) return;
+      var open = !menu.classList.contains("open");
+      HS.closeMenus(menu);
+      menu.classList.toggle("open", open); btn.setAttribute("aria-expanded", open ? "true" : "false");
+      return;
+    }
+    if (act === "copy") {
+      e.preventDefault();
+      HS.copyText(HS.eventURL(ev)).then(function () { btn.textContent = "Link copied"; }, function () { btn.textContent = "Copy failed"; });
+      setTimeout(function () { btn.textContent = "Copy link"; HS.closeMenus(); }, 1600);
+    }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") HS.closeMenus(); });
+  /* ?ev=<id>: scroll to that event and light it up once the list has rendered. */
+  HS.focusEvent = function () {
+    var id = HS.qs().get("ev");
+    if (!id) return;
+    var el = document.querySelector('[data-ev="' + (window.CSS && CSS.escape ? CSS.escape(id) : id.replace(/["\\]/g, "")) + '"]');
+    if (!el || el.classList.contains("hl")) return;
+    el.classList.add("hl"); el.setAttribute("tabindex", "-1");
+    setTimeout(function () { el.scrollIntoView({ behavior: "smooth", block: "center" }); try { el.focus({ preventScroll: true }); } catch (err) {} }, 60);
+  };
 
   /* ---------- Rendering ---------- */
+  HS.ICON = {
+    cal: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 2v2H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-3V2h-2v2H9V2H7zm-3 8h16v10H4V10zm7 2v3H8v2h3v3h2v-3h3v-2h-3v-3h-2z"/></svg>',
+    share: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 16a3 3 0 0 0-2.1.9L8.9 13a3 3 0 0 0 0-2l7-3.9A3 3 0 1 0 15 5a3 3 0 0 0 .1.7L8 9.7a3 3 0 1 0 0 4.6l7.1 4A3 3 0 1 0 18 16z"/></svg>',
+    wa: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.6.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3a.5.5 0 0 0 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 2.9 2.9 0 0 0-.9 2.2 5 5 0 0 0 1 2.7 11.5 11.5 0 0 0 4.4 3.9c1.6.7 2.3.8 3.1.6a2.6 2.6 0 0 0 1.7-1.2 2 2 0 0 0 .2-1.2c-.1-.1-.3-.2-.5-.3z"/></svg>',
+    fb: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 22v-8h2.7l.4-3.2h-3.1V8.8c0-.9.3-1.6 1.6-1.6h1.7V4.4c-.3 0-1.3-.1-2.5-.1-2.5 0-4.1 1.5-4.1 4.2v2.3H7.4V14h2.8v8h3.3z"/></svg>',
+    mail: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 2v.5l8 5 8-5V6H4zm0 3v9h16V9l-8 5-8-5z"/></svg>',
+    link: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10.6 13.4a1 1 0 0 1 0 1.4 4 4 0 0 1-5.7-5.6l2.9-2.9a4 4 0 0 1 5.6 0 1 1 0 1 1-1.4 1.4 2 2 0 0 0-2.8 0L6.3 10.6a2 2 0 0 0 2.9 2.8 1 1 0 0 1 1.4 0zm2.8-2.8a1 1 0 0 1 0-1.4 4 4 0 0 1 5.7 5.6l-2.9 2.9a4 4 0 0 1-5.6 0 1 1 0 1 1 1.4-1.4 2 2 0 0 0 2.8 0l2.9-2.9a2 2 0 0 0-2.9-2.8 1 1 0 0 1-1.4 0z"/></svg>'
+  };
   HS.art = function (cat) {
     var h = HS.catHue(cat);
     return "background: linear-gradient(135deg, hsl(" + h + " 55% 38%), hsl(" + ((h + 40) % 360) + " 70% 52%));";
@@ -118,14 +244,23 @@
   HS.eventRow = function (e) {
     var d = HS.parseDate(e.date);
     var link = e.listing && HS.listings[e.listing] ? 'listing.html?id=' + encodeURIComponent(e.listing) : (e.website || "#");
-    return '<div class="event">' +
+    var sh = HS.shareLinks(e);
+    return '<div class="event" data-ev="' + HS.esc(e.id) + '" id="ev-' + HS.esc(e.id) + '">' +
       '<div class="date"><span>' + HS.MONTHS[d.getMonth()].slice(0, 3) + '</span><b>' + d.getDate() + '</b><span>' + HS.DAYS_SHORT[d.getDay()] + '</span></div>' +
       '<div><h3><a href="' + HS.esc(link) + '"' + (/^https?:/.test(link) ? ' target="_blank" rel="noopener"' : "") + '>' + HS.esc(e.title) + '</a></h3>' +
       '<div class="meta">' + HS.esc(HS.fmtRange(e)) + ' · 📍 ' + HS.esc(HS.townName(e.town)) + ' · ' + HS.esc(HS.catName(e.category)) +
       (e.cost === "free" ? ' · <span class="pill free">Free</span>' : "") + (e.verified ? "" : ' · <span class="pill unverified">Unverified</span>') + '</div>' +
       (e.summary ? '<p class="small" style="margin:.3rem 0 0">' + HS.esc(e.summary) + '</p>' : "") + '</div>' +
       '<div class="actions">' + (e.website ? '<a class="btn ghost sm" target="_blank" rel="noopener" href="' + HS.esc(e.website) + '">Details</a>' : "") +
-      '<a class="btn ghost sm" download="' + HS.esc(e.id) + '.ics" href="' + HS.icsFor(e) + '">Add to calendar</a></div></div>';
+      '<span class="cal-wrap"><a class="btn ghost sm" target="_blank" rel="noopener" href="' + HS.esc(HS.googleCalURL(e)) + '" title="Opens Google Calendar">' + HS.ICON.cal + 'Add to calendar</a>' +
+      '<button type="button" class="btn ghost sm ics" data-act="ics" title="Download an .ics file for Outlook, Apple Calendar or any other calendar app" aria-label="Download .ics calendar file">.ics</button></span>' +
+      '<span class="share-wrap"><button type="button" class="btn ghost sm" data-act="share" aria-haspopup="true" aria-expanded="false">' + HS.ICON.share + 'Share</button>' +
+      '<span class="share-menu" role="menu">' +
+      '<a role="menuitem" href="' + HS.esc(sh.whatsapp) + '" target="_blank" rel="noopener">' + HS.ICON.wa + 'WhatsApp</a>' +
+      '<a role="menuitem" href="' + HS.esc(sh.facebook) + '" target="_blank" rel="noopener">' + HS.ICON.fb + 'Facebook</a>' +
+      '<a role="menuitem" href="' + HS.esc(sh.email) + '">' + HS.ICON.mail + 'Email</a>' +
+      '<button type="button" role="menuitem" data-act="copy">' + HS.ICON.link + 'Copy link</button>' +
+      '</span></span></div></div>';
   };
 
   HS.hasCoords = function (l) { return !!l && Array.isArray(l.coords) && l.coords.length === 2 && typeof l.coords[0] === "number" && typeof l.coords[1] === "number"; };

@@ -59,7 +59,7 @@ in its `<title>` and `--screenshot`.
 
 ## First posts (in this order, one per day)
 
-1. **Welcome (pinned).**
+1. **Welcome (pinned).** DONE 2026-09-04 16:17 (text below, with the site link card; the earlier 07:45 group post was edited the same day to end with the website link).
    Hello Helderberg. This page goes with helderbergsocial.co.za, a free community guide to
    groups, clubs, markets, trails, wine estates and what's on this weekend across Somerset West,
    Strand, Gordon's Bay and Sir Lowry's Pass. It is run by residents, not a business, and every

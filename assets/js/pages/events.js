@@ -31,6 +31,7 @@
       return '<h3 class="month-head">' + HS.DAYS[x.d] + '</h3><div class="grid" style="margin-bottom:1rem">' + x.items.map(HS.card).join("") + '</div>';
     }).join("") : '<p class="muted">No weekly fixtures match those filters.</p>';
     HS.setQs(state);
+    HS.focusEvent();
   }
   ["town", "cat", "when"].forEach(function (id) { $(id).addEventListener("change", function () { state[id] = this.value; render(); }); });
   document.getElementById("evfilters").addEventListener("submit", function (e) { e.preventDefault(); });
