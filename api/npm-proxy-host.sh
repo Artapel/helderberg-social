@@ -18,7 +18,7 @@ NPM_URL="${NPM_URL:-http://127.0.0.1:81}"
 
 : "${NPM_USER:?set NPM_USER (NPM admin login email)}"
 : "${NPM_PW:?set NPM_PW (NPM admin password) in the environment}"
-: "${NPM_EMAIL:?set NPM_EMAIL (Let's Encrypt contact address)}"
+: "${NPM_EMAIL:?set NPM_EMAIL (LetsEncrypt contact address)}"
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 
 # --- token (password goes over the local loopback only) ---------------------
