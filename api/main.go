@@ -38,6 +38,9 @@ type App struct {
 	stats *stats
 	tries tryCounter
 	block blocklist
+	// member accounts
+	atmpl *template.Template
+	lock  lockout
 }
 
 func newApp(cfg *Config) (*App, error) {
@@ -48,7 +51,7 @@ func newApp(cfg *Config) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	a := &App{cfg: cfg, db: db, tmpl: parseTemplates(), ctmpl: parseConsole(), stats: newStats(), version: version,
+	a := &App{cfg: cfg, db: db, tmpl: parseTemplates(), ctmpl: parseConsole(), atmpl: parseAccount(), stats: newStats(), version: version,
 		limGet: newLimiter(60, 30), limPost: newLimiter(6, 6), limAdmin: newLimiter(120, 60)}
 	a.loadBlocklist()
 	if cfg.TOTPReset {

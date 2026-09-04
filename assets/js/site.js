@@ -282,6 +282,10 @@
 
   /* ---------- Chrome ---------- */
   var NAV = [["index.html", "Home"], ["directory.html", "Directory"], ["events.html", "Events"], ["places.html", "Places"], ["towns.html", "Towns"], ["subscribe.html", "Get updates"], ["about.html", "About"], ["submit.html", "Add a listing", "cta"]];
+  /* Member accounts live on the API host (server-rendered, no JS needed there).
+     These are the only absolute links in the chrome; they are omitted on a copy
+     of the site that has no API. */
+  HS.accountURL = function (path) { return HS.api ? HS.api + "/account" + (path || "") : ""; };
   HS.wordmark = function () {
     var n = String(D.site.name || "Helderberg Social"), i = n.lastIndexOf(" ");
     return i > 0 ? HS.esc(n.slice(0, i)) + " <em>" + HS.esc(n.slice(i + 1)) + "</em>" : HS.esc(n);
@@ -303,7 +307,8 @@
       h.className = "site-header";
       h.innerHTML = '<div class="wrap"><a class="logo" href="index.html" aria-label="' + HS.esc(D.site.name || "Helderberg Social") + ' home"><img class="logo-mark" src="assets/img/logo-mark.svg" alt="" width="36" height="36"><span class="wordmark">' + HS.wordmark() + '</span></a>' +
         '<button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button><nav class="nav" aria-label="Main">' +
-        NAV.map(function (n) { return '<a href="' + n[0] + '" class="' + (n[2] || "") + (here === n[0] ? " active" : "") + '">' + n[1] + '</a>'; }).join("") + '</nav></div>';
+        NAV.map(function (n) { return '<a href="' + n[0] + '" class="' + (n[2] || "") + (here === n[0] ? " active" : "") + '">' + n[1] + '</a>'; }).join("") +
+        (HS.api ? '<a href="' + HS.accountURL("/events/new") + '" class="cta alt">Post an event</a>' : "") + '</nav></div>';
       var btn = h.querySelector(".nav-toggle"), nav = h.querySelector(".nav");
       btn.addEventListener("click", function () { var o = nav.classList.toggle("open"); btn.setAttribute("aria-expanded", o); });
     }
@@ -314,7 +319,7 @@
         '<p>' + HS.esc(D.site.tagline || "") + '</p><p class="small">Listings are community-submitted. Anything marked <em>Unverified</em> has not yet been checked by us: confirm times and prices with the organiser before you go.</p>' +
         '<p class="small">© ' + new Date().getFullYear() + ' ' + HS.esc(D.site.name || "") + ' · ' + HS.esc(D.site.region || "") + '</p></div>' +
         '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
-        '<div><h4>Get involved</h4><ul><li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email or WhatsApp updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li></ul></div>' +
+        '<div><h4>Get involved</h4><ul>' + (HS.api ? '<li><a href="' + HS.accountURL("/events/new") + '">Post an event</a></li>' : "") + '<li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email or WhatsApp updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li>' + (HS.api ? '<li><a href="' + HS.accountURL() + '">Sign in / my account</a></li>' : "") + '</ul></div>' +
         HS.followBlock() + '</div>';
     }
     HS.updateCounts();

@@ -12,7 +12,7 @@
       return (!state.town || e.town === state.town) && (!state.cat || e.category === state.cat);
     });
     if (!evs.length) {
-      $("dated").innerHTML = '<div class="empty">No dated events match. <a href="submit.html?kind=event">Add one.</a></div>';
+      $("dated").innerHTML = '<div class="empty">No dated events match. <a href="' + (HS.accountURL("/events/new") || "submit.html?kind=event") + '">Add one.</a></div>';
     } else {
       var out = "", month = "";
       evs.forEach(function (e) {
@@ -33,6 +33,7 @@
     HS.setQs(state);
     HS.focusEvent();
   }
+  if (HS.api) { $("post-link").href = HS.accountURL("/events/new"); $("post-cta").hidden = false; }
   ["town", "cat", "when"].forEach(function (id) { $(id).addEventListener("change", function () { state[id] = this.value; render(); }); });
   document.getElementById("evfilters").addEventListener("submit", function (e) { e.preventDefault(); });
   HS.onEvents(render);

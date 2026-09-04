@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 4
+const schemaVersion = 5
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -60,6 +60,28 @@ var schema = []string{
 		ip_hash TEXT NOT NULL DEFAULT ''
 	)`,
 	`CREATE INDEX IF NOT EXISTS events_status_date ON events(status, date)`,
+	`CREATE TABLE IF NOT EXISTS members (
+		id INTEGER PRIMARY KEY,
+		email TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL,
+		pw_hash TEXT NOT NULL,
+		created_at TEXT NOT NULL,
+		verified_at TEXT,
+		last_login_at TEXT,
+		status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
+		ip_hash TEXT NOT NULL DEFAULT ''
+	)`,
+	`CREATE TABLE IF NOT EXISTS member_sessions (
+		id_hash TEXT PRIMARY KEY,
+		member_id INTEGER NOT NULL,
+		created_at TEXT NOT NULL,
+		last_seen_at TEXT NOT NULL,
+		expires_at TEXT NOT NULL,
+		ip_hash TEXT NOT NULL DEFAULT '',
+		ua TEXT NOT NULL DEFAULT '',
+		revoked INTEGER NOT NULL DEFAULT 0
+	)`,
+	`CREATE INDEX IF NOT EXISTS member_sessions_member ON member_sessions(member_id)`,
 	`CREATE TABLE IF NOT EXISTS listing_submissions (
 		id INTEGER PRIMARY KEY,
 		kind TEXT NOT NULL,
@@ -164,6 +186,15 @@ func migrate(db *sql.DB) error {
 			return fmt.Errorf("migrate subscribers to v3: %w", err)
 		}
 	}
+	// v5: events posted from a member account point back at it.
+	if !hasColumn(db, "events", "member_id") {
+		if _, err := db.Exec(`ALTER TABLE events ADD COLUMN member_id INTEGER`); err != nil {
+			return fmt.Errorf("migrate events.member_id: %w", err)
+		}
+		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_member ON events(member_id)`); err != nil {
+			return fmt.Errorf("migrate events_member index: %w", err)
+		}
+	}
 	return nil
 }
 
@@ -217,13 +248,14 @@ type Event struct {
 	Origin        string `json:"-"`
 	SubmitterName string `json:"-"`
 	CreatedAt     string `json:"-"`
+	MemberID      int64  `json:"-"` // 0 when not posted from a member account
 }
 
-const eventCols = `id, title, date, end_date, time, end_time, town, category, listing, summary, cost, website, source, status, origin, submitter_name, created_at`
+const eventCols = `id, title, date, end_date, time, end_time, town, category, listing, summary, cost, website, source, status, origin, submitter_name, created_at, COALESCE(member_id, 0)`
 
 func scanEvent(rows interface{ Scan(...any) error }) (Event, error) {
 	var e Event
-	err := rows.Scan(&e.ID, &e.Title, &e.Date, &e.EndDate, &e.Time, &e.EndTime, &e.Town, &e.Category, &e.Listing, &e.Summary, &e.Cost, &e.Website, &e.Source, &e.Status, &e.Origin, &e.SubmitterName, &e.CreatedAt)
+	err := rows.Scan(&e.ID, &e.Title, &e.Date, &e.EndDate, &e.Time, &e.EndTime, &e.Town, &e.Category, &e.Listing, &e.Summary, &e.Cost, &e.Website, &e.Source, &e.Status, &e.Origin, &e.SubmitterName, &e.CreatedAt, &e.MemberID)
 	e.Verified = e.Status == "approved" && e.Origin == "admin"
 	return e, err
 }
@@ -253,8 +285,12 @@ func (a *App) approvedEvents(from time.Time, days int) ([]Event, error) {
 }
 
 func (a *App) insertEvent(e Event, ipHash string, submitterEmail string, sourceID *int64) error {
-	_, err := a.db.Exec(`INSERT INTO events(`+eventCols+`, submitter_email, source_id, ip_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		e.ID, e.Title, e.Date, e.EndDate, e.Time, e.EndTime, e.Town, e.Category, e.Listing, e.Summary, e.Cost, e.Website, e.Source, e.Status, e.Origin, e.SubmitterName, now(), submitterEmail, sourceID, ipHash)
+	var member *int64
+	if e.MemberID > 0 {
+		member = &e.MemberID
+	}
+	_, err := a.db.Exec(`INSERT INTO events(id, title, date, end_date, time, end_time, town, category, listing, summary, cost, website, source, status, origin, submitter_name, created_at, member_id, submitter_email, source_id, ip_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		e.ID, e.Title, e.Date, e.EndDate, e.Time, e.EndTime, e.Town, e.Category, e.Listing, e.Summary, e.Cost, e.Website, e.Source, e.Status, e.Origin, e.SubmitterName, now(), member, submitterEmail, sourceID, ipHash)
 	return err
 }
 
@@ -352,6 +388,8 @@ func (a *App) housekeeping() {
 		{`DELETE FROM mail_log WHERE sent_at < ?`, []any{cut(30 * 24 * time.Hour)}},
 		{`DELETE FROM fb_posts WHERE status IN ('posted','failed','cancelled') AND created_at < ?`, []any{cut(180 * 24 * time.Hour)}},
 		{`DELETE FROM subscribers WHERE confirmed_at IS NULL AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},
+		{`DELETE FROM members WHERE verified_at IS NULL AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},
+		{`DELETE FROM member_sessions WHERE expires_at < ? OR revoked = 1`, []any{cut(24 * time.Hour)}},
 		{`DELETE FROM events WHERE status = 'pending_email' AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},
 		{`DELETE FROM listing_submissions WHERE status = 'pending_email' AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},
 		{`UPDATE events SET submitter_email = '', submitter_name = '', ip_hash = '' WHERE status IN ('approved','rejected') AND decided_at < ?`, []any{cut(90 * 24 * time.Hour)}},

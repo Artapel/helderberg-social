@@ -169,6 +169,7 @@ const consoleSrc = `
 {{if $d.FBOn}}<a class="card{{if $d.FBFailed}} hot{{end}}" href="/admin/facebook" style="text-decoration:none;color:inherit"><b>{{$d.FBQueued}}{{if $d.FBFailed}} <span class="pill no">{{$d.FBFailed}} failed</span>{{end}}</b><small>Facebook posts queued</small></a>{{end}}
 <div class="card"><b>{{$d.Upcoming}}</b><small>upcoming approved events</small></div>
 <div class="card"><b>{{$d.Subs}}</b><small>subscribers <span class="mute">(+{{$d.SubsPending}} unconfirmed)</span></small></div>
+<div class="card"><b>{{$d.Members}}</b><small><a href="/admin/members">members</a> <span class="mute">(+{{$d.MembersPending}} unconfirmed)</span></small></div>
 <div class="card"><b>{{$d.PVToday}}</b><small>page views today · {{$d.UniqToday}} visitors</small></div>
 <div class="card"><b>{{$d.ReqToday}}</b><small>API requests today · {{$d.ErrToday}} errors</small></div>
 <div class="card{{if $d.MailFail}} hot{{end}}"><b>{{$d.MailDay}}</b><small>emails in 24h · {{$d.MailFail}} failed</small></div>
@@ -193,7 +194,7 @@ const consoleSrc = `
 {{end}}
 
 {{/* ---------- queue ---------- */}}
-{{define "event_card"}}<div class="panel"><b>{{.E.Title}}</b> <span class="pill {{statusCls .E.Status}}">{{.E.Status}}</span> <span class="pill">{{.E.Origin}}</span><br>
+{{define "event_card"}}<div class="panel"><b>{{.E.Title}}</b> <span class="pill {{statusCls .E.Status}}">{{.E.Status}}</span> <span class="pill">{{.E.Origin}}</span>{{if .E.MemberID}} <a class="pill ok" href="/admin/members/view?id={{.E.MemberID}}">member #{{.E.MemberID}}</a>{{end}}<br>
 <span class="mute small">{{.E.When}} · {{town .E.Town}} · {{cat .E.Category}} · {{.E.Cost}}{{if .E.Listing}} · listing: {{.E.Listing}}{{end}}{{if .E.SubmitterName}} · from {{.E.SubmitterName}}{{end}} · added {{ago .E.CreatedAt}}</span>
 {{if .E.Summary}}<div style="margin-top:6px;white-space:pre-wrap">{{.E.Summary}}</div>{{end}}
 {{if .E.Website}}<div class="small" style="margin-top:4px"><a href="{{.E.Website}}" rel="noopener noreferrer" target="_blank">{{.E.Website}}</a></div>{{end}}{{if and .E.Source (ne .E.Source .E.Website)}}<div class="small mute">source: {{.E.Source}}</div>{{end}}
@@ -268,6 +269,31 @@ const consoleSrc = `
 {{else}}<tr><td colspan="6" class="mute">No subscribers match.</td></tr>{{end}}</table></div>
 {{if gt $d.Pages 1}}<div class="pager">{{if gt $d.Page 1}}<a href="/admin/subscribers?f={{$d.Filter}}&q={{$d.Q}}&page={{sub $d.Page 1}}">← Newer</a>{{end}}<span class="mute">page {{$d.Page}} of {{$d.Pages}}</span>{{if lt $d.Page $d.Pages}}<a href="/admin/subscribers?f={{$d.Filter}}&q={{$d.Q}}&page={{add $d.Page 1}}">Older →</a>{{end}}</div>{{end}}
 <form method="post" action="/admin/do" class="panel"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/subscribers"><h3>Add a subscriber by hand</h3><p class="small mute">Only for people who asked you directly: this skips the confirmation step (POPIA consent is on you). An email address adds an email subscriber; a phone number adds a WhatsApp one.</p><div class="row"><input type="text" name="email" placeholder="name@example.co.za or 082 123 4567" style="max-width:320px" required><button name="action" value="sub-add">Add as confirmed</button></div></form>
+{{end}}
+
+{{/* ---------- members ---------- */}}
+{{define "p_members"}}{{$d := .D}}{{$c := .CSRF}}
+<div class="cards"><div class="card"><b>{{$d.Active}}</b><small>confirmed members</small></div><div class="card"><b>{{$d.Pending}}</b><small>awaiting email confirmation</small></div><div class="card"><b>{{$d.Disabled}}</b><small>disabled</small></div><div class="card"><b>{{$d.EventsFromMembers}}</b><small>events posted by members</small></div></div>
+<p class="small mute">People who created an account at <a href="{{$d.AccountURL}}/account/register">{{$d.AccountURL}}/account</a> to post events. Every event they post still lands in the <a href="/admin/queue">queue</a>; nothing goes live without you. Registrations are {{if $d.RegOn}}<span class="pill ok">open</span>{{else}}<span class="pill no">paused</span>{{end}} (<a href="/admin/settings">Settings</a>).</p>
+<form method="get" action="/admin/members" class="filters"><div><label>Show</label><select name="f">{{range $s := (list "" "active" "pending" "disabled")}}<option value="{{$s}}" {{if eq $s $d.Filter}}selected{{end}}>{{or $s "all"}}</option>{{end}}</select></div><div style="min-width:220px"><label>Email or name contains</label><input type="text" name="q" value="{{$d.Q}}"></div><div><button>Filter</button></div></form>
+<div class="panel" style="padding:0 6px"><table><tr><th>Member</th><th>Status</th><th class="num">Events</th><th>Joined</th><th>Last sign-in</th><th></th></tr>
+{{range $d.Members}}<tr><td><a href="/admin/members/view?id={{.ID}}">{{.Name}}</a><br><span class="mute small">{{.Email}}</span></td>
+<td>{{if ne .Status "active"}}<span class="pill no">disabled</span>{{else if .VerifiedAt}}<span class="pill ok">confirmed</span>{{else}}<span class="pill warn">unconfirmed</span>{{end}}</td><td class="num">{{.Events}}</td><td>{{ago .CreatedAt}}</td><td>{{ago .LastLoginAt}}</td>
+<td><form method="post" action="/admin/do" class="row tight"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/members?f={{$d.Filter}}&q={{$d.Q}}&page={{$d.Page}}">
+{{if not .VerifiedAt}}<button class="sm" name="action" value="member-resend">Resend</button><button class="ok sm" name="action" value="member-verify">Confirm</button>{{end}}{{if eq .Status "active"}}<button class="sm" name="action" value="member-disable">Disable</button>{{else}}<button class="ok sm" name="action" value="member-enable">Enable</button>{{end}}</form></td></tr>
+{{else}}<tr><td colspan="6" class="mute">No members match.</td></tr>{{end}}</table></div>
+{{if gt $d.Pages 1}}<div class="pager">{{if gt $d.Page 1}}<a href="/admin/members?f={{$d.Filter}}&q={{$d.Q}}&page={{sub $d.Page 1}}">&larr; Newer</a>{{end}}<span class="mute">page {{$d.Page}} of {{$d.Pages}}</span>{{if lt $d.Page $d.Pages}}<a href="/admin/members?f={{$d.Filter}}&q={{$d.Q}}&page={{add $d.Page 1}}">Older &rarr;</a>{{end}}</div>{{end}}
+{{end}}
+
+{{define "p_member_view"}}{{$d := .D}}{{$m := $d.M}}{{$c := .CSRF}}
+<div class="panel"><p><b>{{$m.Name}}</b> &middot; {{$m.Email}} &middot; {{if ne $m.Status "active"}}<span class="pill no">disabled</span>{{else if $m.VerifiedAt}}<span class="pill ok">confirmed</span> {{ts $m.VerifiedAt}}{{else}}<span class="pill warn">email not confirmed</span>{{end}}</p>
+<table><tr><td>Member id</td><td class="mono">#{{$m.ID}}</td></tr><tr><td>Joined</td><td>{{ts $m.CreatedAt}}</td></tr><tr><td>Last sign-in</td><td>{{ago $m.LastLoginAt}}</td></tr><tr><td>Active sessions</td><td>{{$d.Sessions}}</td></tr><tr><td>Sign-up IP tag</td><td class="mono">{{$m.IPHash}}</td></tr></table>
+<form method="post" action="/admin/do" class="row" style="margin-top:10px"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{$m.ID}}"><input type="hidden" name="return" value="/admin/members/view?id={{$m.ID}}">
+{{if not $m.VerifiedAt}}<button name="action" value="member-resend">Resend confirmation</button><button class="ok" name="action" value="member-verify">Confirm now</button>{{end}}{{if eq $m.Status "active"}}<button name="action" value="member-disable">Disable account</button>{{else}}<button class="ok" name="action" value="member-enable">Enable account</button>{{end}}{{if $d.Sessions}}<button name="action" value="member-signout">Sign out everywhere</button>{{end}}<a class="btn" href="/admin/members">Back</a></form>
+<p class="small mute">Disabling keeps the account and its events but the person cannot sign in; their published events stay on the site. Enable to let them back in.</p></div>
+<h2>Events from this member ({{len $d.Events}})</h2>
+{{range $d.Events}}{{template "event_card" (dict "E" . "CSRF" $c "Return" (printf "/admin/members/view?id=%d" $m.ID))}}{{else}}<p class="mute">None yet.</p>{{end}}
+<form method="post" action="/admin/do" class="panel danger"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{$m.ID}}"><h3>Danger zone</h3><p class="row"><label class="inline" style="margin:0"><input type="checkbox" name="confirm" value="yes"> yes, I mean it</label><button class="sm" name="action" value="member-delete">Delete account</button><button class="no sm" name="action" value="member-block">Block address and delete</button></p><p class="small mute">Deleting removes the account, its sessions and its unpublished events; published events stay on the site with the name and email removed (the same as when a member deletes their own account). Blocking also stores a hash of the address so it cannot register or submit again.</p></form>
 {{end}}
 
 {{define "p_subscriber_edit"}}{{$f := .D}}{{$s := $f.S}}

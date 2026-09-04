@@ -30,6 +30,7 @@ var settingDefs = []settingDef{
 	{Key: "maintenance", Label: "Maintenance mode", Help: "Public submissions and subscriptions answer 503 with a friendly message. Reading still works.", Kind: "bool"},
 	{Key: "maintenance_text", Label: "Maintenance message", Help: "Shown to visitors while maintenance mode is on.", Kind: "text"},
 	{Key: "submissions_on", Label: "Accept public submissions", Help: "Switch off to refuse new event and listing submissions (subscriptions unaffected).", Kind: "bool"},
+	{Key: "registrations_on", Label: "Accept new member accounts", Help: "Switch off to stop people creating accounts. Existing members can still sign in and post.", Kind: "bool"},
 	{Key: "subscriptions_on", Label: "Accept new subscribers", Help: "Switch off to refuse new subscriptions (existing ones keep receiving digests).", Kind: "bool"},
 	{Key: "events_window_days", Label: "Public events window (days)", Help: "How far ahead /api/events publishes. 30-400.", Kind: "int"},
 	{Key: "fb_events_on", Label: "Facebook: post approved events", Help: "Each event you approve is posted to the Facebook page after the delay below. Needs HS_FB_PAGE_ID and HS_FB_PAGE_TOKEN.", Kind: "bool"},
@@ -47,7 +48,7 @@ func (a *App) settingDefault(key string) string {
 		return fmt.Sprint(int(a.cfg.WeeklyDay))
 	case "watch_minutes":
 		return fmt.Sprint(int(a.cfg.WatchInterval.Minutes()))
-	case "digests_on", "watch_on", "submissions_on", "subscriptions_on":
+	case "digests_on", "watch_on", "submissions_on", "subscriptions_on", "registrations_on":
 		return "1"
 	case "maintenance_text":
 		return "We are doing a little maintenance. Please try again in a few minutes."

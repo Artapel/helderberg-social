@@ -21,24 +21,38 @@ image, non-root, read-only filesystem, all capabilities dropped.
 | Email updates | Double opt-in. Subscriber picks daily or weekly, a 7/14/30-day horizon, towns and categories. Daily digests go out at `HS_DIGEST_HOUR` local time, weekly on `HS_WEEKLY_DAY`. Empty digests are skipped. Every mail has `List-Unsubscribe` (one-click) and a signed unsubscribe link; unsubscribing deletes the row. |
 | WhatsApp updates | The same subscription over WhatsApp instead of email (`channel='whatsapp'`, a phone number, no email). Confirmation is a button tap on a template message, the digest is a template with a one-line list plus a *See all events* button to a personalised page, STOP or the Unsubscribe button deletes the row. Automatic end to end; needs the Meta-side setup in `docs/whatsapp.md`. Off until `HS_WA_*` are set. |
 | Facebook posting | Posts to the Facebook page through the Graph API from a queue the scheduler drains one item a minute: each approved event after a delay (off by default), a weekly "this weekend" list (off by default), and posts the admin writes or schedules in the console. One post per event ever; a queued post is cancelled when its event is taken back. Off until `HS_FB_*` are set; runbook in `docs/facebook.md`. |
+| Member accounts | Anyone can create an account (name, email, password) at `/account/register`, confirm the address by email, and then post events from `/account`. Each event goes into the same moderation queue; the member sees its state (waiting, published, not published), gets an email either way, and can edit (which sends it back for a check) or remove it. Accounts can change name and password, and delete themselves. Runbook and design in `docs/accounts.md`. |
 | Submissions | Events and listings from the public. Submitter verifies by email; the item then lands in the moderation queue and the admin gets a mail with approve/reject links. Approved events publish immediately. Approved listings produce a ready-to-paste `data.js` block in the queue (listings stay curated in the repo). |
 | Moderation | `moderate.html` asks for the admin address and emails a 12-hour sign-in link. The queue shows pending items, sources and lets the admin run a source check or preview a digest. No passwords exist anywhere. |
 | Source watcher | Every `HS_WATCH_INTERVAL` (6 h) the sources in `api/sources.json` are fetched politely (1.5 s apart, 2 MB cap, 25 s timeout, identified user agent). ICS feeds yield events straight into the queue (deduplicated per UID). Plain pages are hashed after stripping tags and noise; a change emails the admin a "look at this" line. It never publishes anything on its own. |
-| Housekeeping | Hourly: unconfirmed subscribers and submissions deleted after 3 days, submitter name/email scrubbed 90 days after a decision, used-token and mail-log rows expired. |
+| Housekeeping | Hourly: unconfirmed subscribers, submissions and member accounts deleted after 3 days, expired member sessions purged, submitter name/email scrubbed 90 days after a decision, used-token and mail-log rows expired. |
 
 ## Security model
 
-- **No passwords.** Every public action link is an HMAC-SHA256 token (purpose,
+- **No admin password.** Every public action link is an HMAC-SHA256 token (purpose,
   subject, expiry, nonce) signed with `HS_SECRET`; single-use tokens are recorded
   in `tokens_used`. Confirm/verify links last 72 h, moderation links 30 days.
+- **Member passwords** are the one place a password exists: hashed with Argon2id
+  (19 MiB, 2 passes, 16-byte salt; parameters stored in the hash so they can be
+  raised later and old hashes are re-hashed on the next sign-in), at least 10
+  characters, not the address, not on a short common-password list. Sign-in
+  is locked for 15 minutes after 8 wrong passwords for an address (and per IP),
+  an unknown address costs the same time as a wrong password, and the failure
+  message is identical for both. Sessions are a random 256-bit cookie stored
+  hashed, `HttpOnly; Secure; SameSite=Lax; Path=/account`, 30 days, 7 days
+  idle; every form carries a per-session CSRF token; a password change or
+  reset revokes every other session. Reset and confirmation links are the
+  same single-use signed tokens as everywhere else (1 h and 24 h).
 - **Admin sign-in is two-factor** (see *The admin console* below): an emailed
   single-use link (15 min) and then a time-based code from Google Authenticator
   (RFC 6238) or a one-time backup code. Moderation links in emails land inside
   the console and need a session, so a forwarded email can approve nothing.
 - **Origin.** CORS allows only `HS_SITE_URL`. Requests are limited per IP
-  (token bucket: 60 GET/min; 6 POST/min for public writes and the sign-in
-  steps; 120/min for the signed-in console), bodies capped at 32 KB, honeypot
-  fields (`website` on subscribe, `company` on submissions) drop bots silently.
+  (token bucket: 60 GET/min; 6 POST/min for public writes, the admin sign-in
+  steps and the anonymous account forms (register, sign in, forgot, reset,
+  resend); 120/min for the signed-in console and the signed-in account
+  forms), bodies capped at 32 KB, honeypot fields (`website` on subscribe,
+  `company` on submissions, `website_url` on registration) drop bots silently.
   Addresses and clients on the console blocklist are dropped silently.
 - **Input.** Strict vocabularies for town/category/audience/cost/kind, URLs
   must be http(s) without userinfo, control characters stripped, lengths
@@ -103,6 +117,7 @@ sessions, audited), then remove it.
 | Queue | approve / reject events and listing submissions (the `data.js` block is shown per listing) |
 | Events | filter/search everything, edit any field, create events (published immediately, marked verified), unpublish, reopen, delete |
 | Listings | every submission by status, delete old ones |
+| Members | everyone with an account: filter (confirmed / unconfirmed / disabled), search name or email, per-member page with their events and active sessions; resend or force the confirmation, disable/enable (disabling signs them out everywhere), sign out everywhere, delete (published events stay, anonymised), block the address and delete |
 | Subscribers | email address or WhatsApp number (channel pill), filter by channel, search either, edit preferences, resend/force confirmation (email link or WhatsApp template), remove, block address or number, add by hand (either), CSV export |
 | Digests | schedule and next runs, preview to yourself, send now (with confirmation), 30-day history |
 | Facebook | connection check, queue with cancel/post now, history with permalinks and retry, write or schedule a post, post any approved event, preview and queue this weekend's list |
@@ -110,7 +125,7 @@ sessions, audited), then remove it.
 | Analytics | page views and visitors per day, top pages, API routes and errors, subscriber growth, events by town/category (7/30/90 days) |
 | Logs | last 300 requests, mail log (hashes only), audit log, last 500 app log lines |
 | Security | authenticator status, regenerate backup codes, remove authenticator, active sessions with revoke, sign-in history, blocklist |
-| Settings | runtime overrides without restart: digest hour/day, pause digests, watch interval, pause watching, extra notification addresses, announcement banner, maintenance mode, pause submissions/subscriptions, public events window, Facebook automatic posting (approved events + delay, weekend list + day/hour); read-only view of the environment |
+| Settings | runtime overrides without restart: digest hour/day, pause digests, watch interval, pause watching, extra notification addresses, announcement banner, maintenance mode, pause submissions/subscriptions/new member accounts, public events window, Facebook automatic posting (approved events + delay, weekend list + day/hour); read-only view of the environment |
 | System | version, uptime, memory, DB size and table counts, housekeeping now, integrity check, WAL checkpoint, test email, WhatsApp configuration + template status + test message, outbound-mail DNS checks, JSON export of everything, snapshots (`VACUUM INTO`, newest 14 kept) with download |
 
 **Settings the site reacts to.** `/api/events` carries a `site` object

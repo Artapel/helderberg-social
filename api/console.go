@@ -27,7 +27,7 @@ type navItem struct{ Path, Label, Icon string }
 
 var consoleNav = []navItem{
 	{"/admin", "Dashboard", "◧"}, {"/admin/queue", "Queue", "☐"}, {"/admin/events", "Events", "▤"},
-	{"/admin/listings", "Listings", "▥"}, {"/admin/subscribers", "Subscribers", "✉"}, {"/admin/digests", "Digests", "⏰"},
+	{"/admin/listings", "Listings", "▥"}, {"/admin/members", "Members", "☺"}, {"/admin/subscribers", "Subscribers", "✉"}, {"/admin/digests", "Digests", "⏰"},
 	{"/admin/facebook", "Facebook", "f"}, {"/admin/sources", "Sources", "⇅"}, {"/admin/analytics", "Analytics", "▲"}, {"/admin/logs", "Logs", "≡"},
 	{"/admin/security", "Security", "⚿"}, {"/admin/settings", "Settings", "⚙"}, {"/admin/system", "System", "▣"},
 }
@@ -61,6 +61,8 @@ func (a *App) registerConsole(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/events", a.requireAdmin(a.eventsPage))
 	mux.HandleFunc("GET /admin/events/edit", a.requireAdmin(a.eventEditPage))
 	mux.HandleFunc("GET /admin/listings", a.requireAdmin(a.listingsPage))
+	mux.HandleFunc("GET /admin/members", a.requireAdmin(a.membersPage))
+	mux.HandleFunc("GET /admin/members/view", a.requireAdmin(a.memberViewPage))
 	mux.HandleFunc("GET /admin/subscribers", a.requireAdmin(a.subscribersPage))
 	mux.HandleFunc("GET /admin/subscribers/edit", a.requireAdmin(a.subscriberEditPage))
 	mux.HandleFunc("GET /admin/digests", a.requireAdmin(a.digestsPage))
@@ -87,6 +89,9 @@ func (a *App) renderConsole(w http.ResponseWriter, r *http.Request, name, title 
 	}
 	if strings.HasPrefix(v.Active, "/admin/events/") {
 		v.Active = "/admin/events"
+	}
+	if strings.HasPrefix(v.Active, "/admin/members/") {
+		v.Active = "/admin/members"
 	}
 	if strings.HasPrefix(v.Active, "/admin/subscribers/") {
 		v.Active = "/admin/subscribers"
@@ -143,6 +148,7 @@ func pageOf(r *http.Request) (int, int) {
 
 type dashData struct {
 	PendingEvents, PendingListings, Upcoming, Subs, SubsPending, SourcesOn, Sources int
+	Members, MembersPending                                                         int
 	MailDay, MailFail, ReqToday, ErrToday, PVToday, UniqToday, Backup, Sessions     int
 	Uptime, LastDaily, LastWeekly, LastWatch, Enrolled                              string
 	PV                                                                              []dayCount
@@ -179,6 +185,8 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
 		Upcoming:        a.count(`SELECT COUNT(*) FROM events WHERE status='approved' AND (CASE WHEN end_date='' THEN date ELSE end_date END) >= ?`, today),
 		Subs:            a.count(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NOT NULL`),
 		SubsPending:     a.count(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NULL`),
+		Members:         a.count(`SELECT COUNT(*) FROM members WHERE verified_at IS NOT NULL`),
+		MembersPending:  a.count(`SELECT COUNT(*) FROM members WHERE verified_at IS NULL`),
 		SourcesOn:       a.count(`SELECT COUNT(*) FROM sources WHERE enabled=1`),
 		Sources:         a.count(`SELECT COUNT(*) FROM sources`),
 		MailDay:         a.count(`SELECT COUNT(*) FROM mail_log WHERE sent_at > ?`, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339)),
@@ -1070,6 +1078,12 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 			err = fmt.Errorf("no such subscriber")
 		}
 		a.audit(r, "subscriber.resend", id, "")
+	// members
+	case "member-disable", "member-enable", "member-verify", "member-delete", "member-block", "member-resend", "member-signout":
+		msg, err = a.memberAction(r, action, id)
+		if action == "member-delete" || action == "member-block" {
+			ret = "/admin/members"
+		}
 	case "sub-delete":
 		_, err = a.db.Exec(`DELETE FROM subscribers WHERE id = ?`, id)
 		msg = "Subscriber removed."

@@ -20,6 +20,7 @@
     $("f-aud").hidden = k === "event";
     $("name-label").textContent = k === "event" ? "Event title" : "Name";
     $("h").textContent = k === "update" ? "Report a change" : k === "event" ? "Add an event" : "Add a listing";
+    if (HS.api) { $("account-new").href = HS.accountURL("/events/new"); $("account-in").href = HS.accountURL(); $("account-cta").hidden = k !== "event"; }
     if (k === "update" && $("existing").value) {
       var l = HS.listings[$("existing").value];
       if (l) { $("name").value = l.name; $("category").value = l.category; $("town").value = l.town; $("schedule").value = (l.schedule && l.schedule.text) || ""; $("summary").value = l.summary; $("cost").value = l.cost || "free"; $("website").value = l.website || ""; }

@@ -128,6 +128,7 @@ func (a *App) decide(kind, id, action string) (string, error) {
 		} else {
 			a.fbCancelRef("event", id)
 		}
+		a.notifyMemberDecision(id, status)
 		return fmt.Sprintf("Event %q is now %s.", id, status), nil
 	case "listing:accept", "listing:reject":
 		status := "accepted"

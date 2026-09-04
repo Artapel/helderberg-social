@@ -40,6 +40,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/moderate", a.legacyAdminLink)
 	mux.HandleFunc("GET /api/admin", a.legacyAdminLink)
 	a.registerConsole(mux)
+	a.accountRoutes(mux)
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { a.fail(w, 404, "not found") })
 	return a.middleware(mux)
 }
@@ -96,9 +97,9 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		lim := a.limGet
 		p := r.URL.Path
 		switch {
-		case r.Method == http.MethodPost && (p == "/admin/login" || p == "/admin/enrol" || p == "/admin/2fa" || (strings.HasPrefix(p, "/api/") && p != "/api/ping")):
+		case r.Method == http.MethodPost && (p == "/admin/login" || p == "/admin/enrol" || p == "/admin/2fa" || accountAnonPost(p) || (strings.HasPrefix(p, "/api/") && p != "/api/ping")):
 			lim = a.limPost
-		case strings.HasPrefix(p, "/admin"):
+		case strings.HasPrefix(p, "/admin") || (r.Method == http.MethodPost && strings.HasPrefix(p, "/account")):
 			lim = a.limAdmin
 		}
 		if !lim.allow(ip) {
@@ -109,6 +110,11 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/ping" && a.settingBool("maintenance") {
 			h.Set("Retry-After", "600")
 			a.fail(w, 503, a.setting("maintenance_text"))
+			return
+		}
+		if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/account") && r.URL.Path != "/account/logout" && a.settingBool("maintenance") {
+			h.Set("Retry-After", "600")
+			a.page(w, 503, "Back in a few minutes", a.setting("maintenance_text"), "")
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
@@ -153,6 +159,18 @@ func (a *App) clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// accountAnonPost is true for the account-area forms anyone can submit
+// without being signed in (register, sign in, reset). They share the tight
+// anti-brute-force bucket; the signed-in forms behind a session + CSRF token
+// get the roomy one, so editing a few events in a row never trips 429.
+func accountAnonPost(p string) bool {
+	switch p {
+	case "/account/register", "/account/login", "/account/forgot", "/account/reset", "/account/resend":
+		return true
+	}
+	return false
 }
 
 func ipOf(r *http.Request) string {

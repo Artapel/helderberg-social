@@ -127,6 +127,11 @@ var tmplSrc = `
 <p>Thanks for sending us the {{.What}} <b>{{.Name}}</b>.</p>
 <p><a href="{{.Link}}" style="display:inline-block;background:#f26b3a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">Yes, that was me</a></p>
 <p style="font-size:13px;color:#6b7280">After that a person checks it before it appears on the site. We never publish your name or email address.</p>
+{{else if eq .Kind "member"}}
+<h2 style="margin:0 0 12px;font-size:20px">{{.Title}}</h2>
+<p>{{.What}}</p>
+<p><a href="{{.Link}}" style="display:inline-block;background:#f26b3a;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-weight:600">{{.Name}}</a></p>
+<p style="font-size:13px;color:#6b7280">If the button does not work, copy this address into your browser:<br>{{.Link}}</p>
 {{else if eq .Kind "digest"}}
 <h2 style="margin:0 0 12px;font-size:20px">What's on over the next {{.Horizon}} days</h2>
 {{range .Days}}<h3 style="margin:18px 0 6px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#0f4c5c">{{.Label}}</h3>
