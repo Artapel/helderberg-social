@@ -123,7 +123,9 @@ Copy `api/.env.example` to `api/.env` (mode 600) and fill in:
 | `HS_SECRET` | 32+ random characters (`openssl rand -base64 48`). Rotating it invalidates every outstanding link. |
 | `HS_SITE_URL` / `HS_API_URL` | `https://helderbergsocial.co.za` / `https://api.helderbergsocial.co.za` |
 | `HS_ADMIN_EMAIL` | The one address that can sign in to the console (emailed link + authenticator code) and receives queue mail. |
-| `HS_MAIL_FROM`, `HS_SMTP_HOST`, `HS_SMTP_PORT`, `HS_SMTP_USER`, `HS_SMTP_PASS` | Transactional mail. Any provider with SMTP works. Add its SPF include and DKIM records for `helderbergsocial.co.za` at HostAfrica or mail lands in spam. |
+| `HS_MAIL_FROM` | Sender shown on every mail. Its domain is the one DKIM signs for and the DNS checks look at. |
+| `HS_SMTP_HOST`, `HS_SMTP_PORT`, `HS_SMTP_USER`, `HS_SMTP_PASS` | Optional relay. Leave the host empty for direct delivery (see *Outbound mail*). |
+| `HS_MAIL_IP`, `HS_MAIL_HELO`, `HS_DKIM_SELECTOR` | Public sending address (for SPF and the PTR check), EHLO name (defaults to the API host), DKIM selector (`hs1`; empty disables signing). |
 | `HS_BIND_IP` | Interface the container port binds to on the host (the internal address, never `0.0.0.0`). |
 | `HS_TZ`, `HS_DIGEST_HOUR`, `HS_WEEKLY_DAY`, `HS_WATCH_INTERVAL` | Defaults: `Africa/Johannesburg`, 6, 4 (Thursday), 6h. |
 | `HS_TOTP_RESET` | Set to `1` for one restart only, to wipe a lost authenticator and every session (audited). Remove it again straight away. |
@@ -136,7 +138,9 @@ git clone https://github.com/Artapel/helderberg-social ~/helderberg-social
 cd ~/helderberg-social && cp api/.env.example api/.env && chmod 600 api/.env && $EDITOR api/.env
 bash api/deploy.sh                 # builds the image, starts it, waits for /api/health
 # DNS: api A record -> the proxy's public IP (docs/dns-setup.py adds it)
-NPM_USER=… NPM_PW=… NPM_EMAIL=… bash api/npm-proxy-host.sh   # proxy host + Let's Encrypt
+NPM_USER=… NPM_PW=… bash api/npm-proxy-host.sh   # proxy host + Let's Encrypt
+# mail DNS (SPF, DKIM, DMARC, null MX) once the container is up and serving /api/mail-dns
+HA_TOKEN=… python docs/dns-setup.py --mail
 # nightly backup
 (crontab -l; echo "17 2 * * * bash $HOME/helderberg-social/api/backup.sh") | crontab -
 
@@ -149,7 +153,48 @@ Health: `curl -sS https://api.helderbergsocial.co.za/api/health`. Logs:
 (30 days kept). Restore: stop the container, copy the `.db` file into the
 `helderberg-social_hs-data` volume, start it again.
 
-Tests: `cd api && go vet ./... && go test ./...` (uses a file mailer, no network).
+Tests: `cd api && go vet ./... && go test ./...` (uses a file mailer; the only
+network use is one MX lookup in the mail-DNS test).
+
+## Outbound mail
+
+There is no mail account anywhere. With `HS_SMTP_HOST` empty the API is its
+own mail transfer agent: it looks up the recipient's MX records, connects to
+port 25, EHLOs as `HS_MAIL_HELO`, upgrades to TLS when the receiver offers
+STARTTLS, and hands the message over. Up to three MX hosts are tried in
+preference order; a 5xx from any of them is treated as a permanent refusal.
+Every message, in every mode, is DKIM-signed (RFC 6376, rsa-sha256,
+relaxed/relaxed) with a 2048-bit key the API generates on first start into the
+data volume as `dkim-<selector>.key`, mode 600. The key never leaves the
+container; the console only ever shows the public half.
+
+Direct sending is trusted only when DNS says it is. The four records below are
+what receivers check; `GET /api/mail-dns` serves them as JSON (public
+information) and `docs/dns-setup.py --mail` publishes them at HostAfrica. The
+System page in the console resolves each one live and shows *DNS complete* or
+*DNS incomplete* with the want/have pair per record.
+
+| Record | Value | Why |
+|---|---|---|
+| `TXT @` | `v=spf1 ip4:<HS_MAIL_IP> -all` | Only that address may send as the domain. |
+| `TXT hs1._domainkey` | `v=DKIM1; k=rsa; p=<public key>` | The key that matches the signature. Longer than 255 octets, so the script republishes it as quoted 255-octet strings if the registrar rejects the single string. |
+| `TXT _dmarc` | `v=DMARC1; p=quarantine; adkim=s; aspf=s; fo=1` | Receivers junk (not just accept) mail that fails both checks; strict alignment on the `From` domain. No reporting address yet, as the domain does not receive mail. |
+| `MX @` | `0 .` (null MX, RFC 7505) | The domain sends but never receives. Replies bounce at once instead of timing out against the GitHub Pages address the old MX pointed at. |
+
+One thing the zone cannot fix: **reverse DNS on `HS_MAIL_IP`**. Gmail and
+Outlook refuse port-25 connections from an address without a PTR. The ISP that
+owns the address sets it; ask for `api.helderbergsocial.co.za` (or any name that
+resolves back to the address) and make `HS_MAIL_HELO` match. Until then, expect
+Gmail recipients to be refused with a 550 and the mail log to say so.
+
+Checking a real send: address a subscription at the domain
+[mail-tester.com](https://www.mail-tester.com) shows and confirm it; the score
+page lists SPF, DKIM, DMARC and PTR results individually. The *Send a test
+email* button on the System page mails `HS_ADMIN_EMAIL`.
+
+Relay mode (`HS_SMTP_HOST` set, with user and password) still signs with the
+same key, so the DKIM record stays valid; add the relay's own SPF include to
+the `TXT @` record by hand in that case.
 
 ## Adding a source
 

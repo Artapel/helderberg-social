@@ -24,6 +24,7 @@ type App struct {
 	cfg      *Config
 	db       *sql.DB
 	mailer   Mailer
+	dkim     *dkimSigner
 	tmpl     *template.Template
 	limGet   *limiter
 	limPost  *limiter
@@ -54,10 +55,23 @@ func newApp(cfg *Config) (*App, error) {
 		a.audit(nil, "totp.reset", "", "HS_TOTP_RESET=1 at start-up; remove the variable now")
 		a.logf("WARNING: HS_TOTP_RESET=1 wiped the authenticator; unset it and restart")
 	}
-	if cfg.DevMailDir != "" {
-		a.mailer = &fileMailer{dir: cfg.DevMailDir, from: cfg.MailFrom}
-	} else {
-		a.mailer = &smtpMailer{host: cfg.SMTPHost, port: cfg.SMTPPort, user: cfg.SMTPUser, pass: cfg.SMTPPass, from: cfg.MailFrom}
+	if cfg.DKIMSelector != "" {
+		signer, created, err := loadOrCreateDKIM(cfg.DataDir, a.mailDomain(), cfg.DKIMSelector)
+		if err != nil {
+			return nil, fmt.Errorf("dkim: %w", err)
+		}
+		a.dkim = signer
+		if created {
+			a.logf("dkim: generated a new 2048-bit key; publish TXT %s -> %s", signer.recordName(), signer.recordValue())
+		}
+	}
+	switch {
+	case cfg.DevMailDir != "":
+		a.mailer = &fileMailer{dir: cfg.DevMailDir, from: cfg.MailFrom, dkim: a.dkim}
+	case cfg.SMTPHost != "":
+		a.mailer = &smtpMailer{host: cfg.SMTPHost, port: cfg.SMTPPort, user: cfg.SMTPUser, pass: cfg.SMTPPass, from: cfg.MailFrom, dkim: a.dkim}
+	default:
+		a.mailer = &directMailer{from: cfg.MailFrom, helo: cfg.MailHelo, dkim: a.dkim, logf: a.logf}
 	}
 	if err := a.seedSources(); err != nil {
 		return nil, err
@@ -115,8 +129,11 @@ func main() {
 }
 
 func mailMode(cfg *Config) string {
-	if cfg.DevMailDir != "" {
+	switch {
+	case cfg.DevMailDir != "":
 		return "files in " + cfg.DevMailDir
+	case cfg.SMTPHost != "":
+		return fmt.Sprintf("relay %s:%d", cfg.SMTPHost, cfg.SMTPPort)
 	}
-	return fmt.Sprintf("%s:%d", cfg.SMTPHost, cfg.SMTPPort)
+	return "direct to recipient MX (HELO " + cfg.MailHelo + ")"
 }

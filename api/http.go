@@ -23,6 +23,7 @@ const ipKey ctxKey = 1
 func (a *App) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", a.health)
+	mux.HandleFunc("GET /api/mail-dns", a.mailDNS)
 	mux.HandleFunc("GET /api/events", a.getEvents)
 	mux.HandleFunc("POST /api/subscribe", a.subscribe)
 	mux.HandleFunc("GET /api/confirm", a.confirm)

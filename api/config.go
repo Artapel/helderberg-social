@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -11,6 +14,8 @@ import (
 // Config is read from the environment once at start-up. Secrets never come
 // from argv or files inside the image; they arrive through the compose env
 // file, which lives only on the host.
+var dkimSelectorRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$`)
+
 type Config struct {
 	Listen        string
 	DataDir       string
@@ -24,6 +29,9 @@ type Config struct {
 	SMTPUser      string
 	SMTPPass      string
 	DevMailDir    string // when set, mail is written to files instead of SMTP
+	MailIP        string // public address mail leaves from; goes into the SPF record and the System-page checks
+	MailHelo      string // EHLO name for direct delivery (defaults to the API host)
+	DKIMSelector  string // empty disables signing
 	TZ            *time.Location
 	DigestHour    int
 	WeeklyDay     time.Weekday
@@ -41,18 +49,21 @@ func env(key, def string) string {
 
 func loadConfig() (*Config, error) {
 	c := &Config{
-		Listen:     env("HS_LISTEN", ":8102"),
-		DataDir:    env("HS_DATA_DIR", "/data"),
-		SiteURL:    strings.TrimRight(env("HS_SITE_URL", "https://helderbergsocial.co.za"), "/"),
-		APIURL:     strings.TrimRight(env("HS_API_URL", "https://api.helderbergsocial.co.za"), "/"),
-		AdminEmail: strings.ToLower(env("HS_ADMIN_EMAIL", "")),
-		MailFrom:   env("HS_MAIL_FROM", "Helderberg Social <hello@helderbergsocial.co.za>"),
-		SMTPHost:   env("HS_SMTP_HOST", ""),
-		SMTPUser:   env("HS_SMTP_USER", ""),
-		SMTPPass:   env("HS_SMTP_PASS", ""),
-		DevMailDir: env("HS_DEV_MAIL_DIR", ""),
-		TrustProxy: env("HS_TRUST_PROXY", "true") == "true",
-		TOTPReset:  env("HS_TOTP_RESET", "") == "1",
+		Listen:       env("HS_LISTEN", ":8102"),
+		DataDir:      env("HS_DATA_DIR", "/data"),
+		SiteURL:      strings.TrimRight(env("HS_SITE_URL", "https://helderbergsocial.co.za"), "/"),
+		APIURL:       strings.TrimRight(env("HS_API_URL", "https://api.helderbergsocial.co.za"), "/"),
+		AdminEmail:   strings.ToLower(env("HS_ADMIN_EMAIL", "")),
+		MailFrom:     env("HS_MAIL_FROM", "Helderberg Social <hello@helderbergsocial.co.za>"),
+		SMTPHost:     env("HS_SMTP_HOST", ""),
+		SMTPUser:     env("HS_SMTP_USER", ""),
+		SMTPPass:     env("HS_SMTP_PASS", ""),
+		DevMailDir:   env("HS_DEV_MAIL_DIR", ""),
+		MailIP:       env("HS_MAIL_IP", ""),
+		MailHelo:     env("HS_MAIL_HELO", ""),
+		DKIMSelector: env("HS_DKIM_SELECTOR", "hs1"),
+		TrustProxy:   env("HS_TRUST_PROXY", "true") == "true",
+		TOTPReset:    env("HS_TOTP_RESET", "") == "1",
 	}
 	secret := env("HS_SECRET", "")
 	if len(secret) < 32 {
@@ -62,8 +73,23 @@ func loadConfig() (*Config, error) {
 	if c.AdminEmail == "" || !validEmail(c.AdminEmail) {
 		return nil, fmt.Errorf("HS_ADMIN_EMAIL must be a valid address")
 	}
-	if c.DevMailDir == "" && (c.SMTPHost == "" || c.SMTPUser == "" || c.SMTPPass == "") {
-		return nil, fmt.Errorf("HS_SMTP_HOST, HS_SMTP_USER and HS_SMTP_PASS are required (or set HS_DEV_MAIL_DIR for local testing)")
+	// Three ways out: files (dev), an authenticated relay (HS_SMTP_*), or direct
+	// delivery to the recipient MX when no relay is configured.
+	if c.DevMailDir == "" && c.SMTPHost != "" && (c.SMTPUser == "" || c.SMTPPass == "") {
+		return nil, fmt.Errorf("HS_SMTP_USER and HS_SMTP_PASS are required when HS_SMTP_HOST is set")
+	}
+	if c.MailHelo == "" {
+		if u, err := url.Parse(c.APIURL); err == nil && u.Hostname() != "" {
+			c.MailHelo = u.Hostname()
+		} else {
+			c.MailHelo = "helderbergsocial.co.za"
+		}
+	}
+	if c.MailIP != "" && net.ParseIP(c.MailIP) == nil {
+		return nil, fmt.Errorf("HS_MAIL_IP must be an IP address")
+	}
+	if c.DKIMSelector != "" && !dkimSelectorRe.MatchString(c.DKIMSelector) {
+		return nil, fmt.Errorf("HS_DKIM_SELECTOR: letters, digits and hyphens only")
 	}
 	var err error
 	if c.SMTPPort, err = strconv.Atoi(env("HS_SMTP_PORT", "587")); err != nil {

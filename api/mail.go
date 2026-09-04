@@ -88,11 +88,15 @@ func crlf(s string) string {
 type smtpMailer struct {
 	host, user, pass, from string
 	port                   int
+	dkim                   *dkimSigner
 }
 
 func (s *smtpMailer) Send(m Message) error {
 	raw, err := build(s.from, m)
 	if err != nil {
+		return err
+	}
+	if raw, err = signIfEnabled(s.dkim, raw); err != nil {
 		return err
 	}
 	fromAddr, _ := mail.ParseAddress(s.from)
@@ -146,11 +150,17 @@ func (s *smtpMailer) Send(m Message) error {
 
 // fileMailer writes each message as an .eml file. Used by tests and by a
 // local run without an SMTP account.
-type fileMailer struct{ dir, from string }
+type fileMailer struct {
+	dir, from string
+	dkim      *dkimSigner
+}
 
 func (f *fileMailer) Send(m Message) error {
 	raw, err := build(f.from, m)
 	if err != nil {
+		return err
+	}
+	if raw, err = signIfEnabled(f.dkim, raw); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(f.dir, 0o755); err != nil {

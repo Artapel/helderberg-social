@@ -842,6 +842,9 @@ type systemData struct {
 	LastHousekeeping                                              string
 	Goroutines                                                    int
 	Mem                                                           string
+	MailMode, MailFrom, MailHelo                                  string
+	MailRecords                                                   []mailRecord
+	MailOK                                                        bool
 }
 
 var backupNameRe = regexp.MustCompile(`^helderberg-\d{8}-\d{6}\.sqlite$`)
@@ -856,6 +859,14 @@ func (a *App) systemPage(w http.ResponseWriter, r *http.Request) {
 		Goroutines: runtime.NumGoroutine(), Mem: fmtBytes(int64(ms.Alloc)), Integrity: clean(r.URL.Query().Get("integrity"), 200)}
 	if st, err := os.Stat(d.DBPath); err == nil {
 		d.DBSize = fmtBytes(st.Size())
+	}
+	d.MailMode, d.MailFrom, d.MailHelo = mailMode(a.cfg), a.cfg.MailFrom, a.cfg.MailHelo
+	d.MailRecords = a.mailRecords()
+	d.MailOK = true
+	for _, m := range d.MailRecords {
+		if !m.OK {
+			d.MailOK = false
+		}
 	}
 	if st, err := os.Stat(d.DBPath + "-wal"); err == nil {
 		d.WALSize = fmtBytes(st.Size())

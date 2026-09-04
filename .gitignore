@@ -6,3 +6,5 @@ node_modules/
 api/.env
 api/hs-data/
 __pycache__/
+api/api
+api/api.exe
