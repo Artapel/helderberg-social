@@ -26,6 +26,7 @@ type App struct {
 	mailer   Mailer
 	dkim     *dkimSigner
 	wa       *waClient
+	fb       *fbClient
 	tmpl     *template.Template
 	limGet   *limiter
 	limPost  *limiter
@@ -67,6 +68,7 @@ func newApp(cfg *Config) (*App, error) {
 		}
 	}
 	a.wa = newWAClient(cfg, a.logf)
+	a.fb = newFBClient(cfg)
 	switch {
 	case cfg.DevMailDir != "":
 		a.mailer = &fileMailer{dir: cfg.DevMailDir, from: cfg.MailFrom, dkim: a.dkim}

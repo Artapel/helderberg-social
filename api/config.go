@@ -45,6 +45,9 @@ type Config struct {
 	// secret and verify token are needed; with none set WhatsApp is simply off.
 	WAPhoneID, WAWABAID, WAToken, WAAppSecret, WAVerifyToken string
 	WAVersion, WALang, WATemplateConfirm, WATemplateDigest   string
+	// Facebook page posting (Graph API). Page id + a Page access token; with
+	// neither set posting is off and the console says so.
+	FBPageID, FBToken, FBVersion string
 }
 
 func env(key, def string) string {
@@ -76,6 +79,7 @@ func loadConfig() (*Config, error) {
 		WAAppSecret: env("HS_WA_APP_SECRET", ""), WAVerifyToken: env("HS_WA_VERIFY_TOKEN", ""),
 		WAVersion: env("HS_WA_API_VERSION", "v22.0"), WALang: env("HS_WA_LANG", "en"),
 		WATemplateConfirm: env("HS_WA_TEMPLATE_CONFIRM", "hs_confirm"), WATemplateDigest: env("HS_WA_TEMPLATE_DIGEST", "hs_digest"),
+		FBPageID: env("HS_FB_PAGE_ID", ""), FBToken: env("HS_FB_PAGE_TOKEN", ""), FBVersion: env("HS_FB_API_VERSION", "v22.0"),
 	}
 	secret := env("HS_SECRET", "")
 	if len(secret) < 32 {
@@ -106,6 +110,19 @@ func loadConfig() (*Config, error) {
 		}
 		if !waVersionRe.MatchString(c.WAVersion) || !waTemplateRe.MatchString(c.WATemplateConfirm) || !waTemplateRe.MatchString(c.WATemplateDigest) {
 			return nil, fmt.Errorf("HS_WA_API_VERSION must look like v22.0 and template names must be lowercase letters, digits and underscores")
+		}
+	}
+	if c.FBPageID != "" || c.FBToken != "" {
+		if c.FBPageID == "" || c.FBToken == "" {
+			return nil, fmt.Errorf("Facebook posting needs HS_FB_PAGE_ID and HS_FB_PAGE_TOKEN together; leave both empty to disable")
+		}
+		if !waVersionRe.MatchString(c.FBVersion) {
+			return nil, fmt.Errorf("HS_FB_API_VERSION must look like v22.0")
+		}
+		for _, r := range c.FBPageID {
+			if r < '0' || r > '9' {
+				return nil, fmt.Errorf("HS_FB_PAGE_ID is the numeric page id, not the page name")
+			}
 		}
 	}
 	if c.AdminPhone != "" {

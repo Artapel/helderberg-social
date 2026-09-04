@@ -28,7 +28,7 @@ type navItem struct{ Path, Label, Icon string }
 var consoleNav = []navItem{
 	{"/admin", "Dashboard", "◧"}, {"/admin/queue", "Queue", "☐"}, {"/admin/events", "Events", "▤"},
 	{"/admin/listings", "Listings", "▥"}, {"/admin/subscribers", "Subscribers", "✉"}, {"/admin/digests", "Digests", "⏰"},
-	{"/admin/sources", "Sources", "⇅"}, {"/admin/analytics", "Analytics", "▲"}, {"/admin/logs", "Logs", "≡"},
+	{"/admin/facebook", "Facebook", "f"}, {"/admin/sources", "Sources", "⇅"}, {"/admin/analytics", "Analytics", "▲"}, {"/admin/logs", "Logs", "≡"},
 	{"/admin/security", "Security", "⚿"}, {"/admin/settings", "Settings", "⚙"}, {"/admin/system", "System", "▣"},
 }
 
@@ -64,6 +64,7 @@ func (a *App) registerConsole(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/subscribers", a.requireAdmin(a.subscribersPage))
 	mux.HandleFunc("GET /admin/subscribers/edit", a.requireAdmin(a.subscriberEditPage))
 	mux.HandleFunc("GET /admin/digests", a.requireAdmin(a.digestsPage))
+	mux.HandleFunc("GET /admin/facebook", a.requireAdmin(a.facebookPage))
 	mux.HandleFunc("GET /admin/sources", a.requireAdmin(a.sourcesPage))
 	mux.HandleFunc("GET /admin/analytics", a.requireAdmin(a.analyticsPage))
 	mux.HandleFunc("GET /admin/logs", a.requireAdmin(a.logsPage))
@@ -823,7 +824,7 @@ func (a *App) settingsPage(w http.ResponseWriter, r *http.Request) {
 	c := a.cfg
 	d.Env = [][2]string{{"HS_LISTEN", c.Listen}, {"HS_DATA_DIR", c.DataDir}, {"HS_SITE_URL", c.SiteURL}, {"HS_API_URL", c.APIURL}, {"HS_ADMIN_EMAIL", c.AdminEmail},
 		{"HS_MAIL_FROM", c.MailFrom}, {"HS_SMTP_HOST", c.SMTPHost}, {"HS_SMTP_PORT", fmt.Sprint(c.SMTPPort)}, {"HS_SMTP_USER", c.SMTPUser}, {"HS_SMTP_PASS", mask(c.SMTPPass)},
-		{"HS_SECRET", mask(string(c.Secret))}, {"HS_DEV_MAIL_DIR", c.DevMailDir}, {"HS_TZ", c.TZ.String()}, {"HS_TRUST_PROXY", fmt.Sprint(c.TrustProxy)},
+		{"HS_SECRET", mask(string(c.Secret))}, {"HS_FB_PAGE_ID", c.FBPageID}, {"HS_FB_PAGE_TOKEN", mask(c.FBToken)}, {"HS_DEV_MAIL_DIR", c.DevMailDir}, {"HS_TZ", c.TZ.String()}, {"HS_TRUST_PROXY", fmt.Sprint(c.TrustProxy)},
 		{"HS_DIGEST_HOUR (default)", fmt.Sprint(c.DigestHour)}, {"HS_WEEKLY_DAY (default)", c.WeeklyDay.String()}, {"HS_WATCH_INTERVAL (default)", c.WatchInterval.String()}}
 	a.renderConsole(w, r, "p_settings", "Settings", d)
 }
@@ -1029,11 +1030,13 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 		}
 	case "event-delete":
 		_, err = a.db.Exec(`DELETE FROM events WHERE id = ?`, id)
+		a.fbCancelRef("event", id)
 		msg = "Event deleted."
 		a.audit(r, "event.delete", id, "")
 		ret = "/admin/events"
 	case "event-unapprove":
 		_, err = a.db.Exec(`UPDATE events SET status='pending_review' WHERE id = ?`, id)
+		a.fbCancelRef("event", id)
 		msg = "Event sent back to the queue."
 		a.audit(r, "event.unapprove", id, "")
 	case "listing-delete":
@@ -1231,6 +1234,10 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 		msg = "Unblocked."
 		a.audit(r, "block.remove", id, "")
 	// settings
+	// facebook
+	case "fb-compose", "fb-cancel", "fb-retry", "fb-now", "fb-event", "fb-weekend", "fb-check":
+		msg, err = a.facebookAction(r, action, id)
+		ret = "/admin/facebook"
 	case "settings-save":
 		form := map[string]string{}
 		for _, d := range settingDefs {

@@ -32,6 +32,11 @@ var settingDefs = []settingDef{
 	{Key: "submissions_on", Label: "Accept public submissions", Help: "Switch off to refuse new event and listing submissions (subscriptions unaffected).", Kind: "bool"},
 	{Key: "subscriptions_on", Label: "Accept new subscribers", Help: "Switch off to refuse new subscriptions (existing ones keep receiving digests).", Kind: "bool"},
 	{Key: "events_window_days", Label: "Public events window (days)", Help: "How far ahead /api/events publishes. 30-400.", Kind: "int"},
+	{Key: "fb_events_on", Label: "Facebook: post approved events", Help: "Each event you approve is posted to the Facebook page after the delay below. Needs HS_FB_PAGE_ID and HS_FB_PAGE_TOKEN.", Kind: "bool"},
+	{Key: "fb_events_delay", Label: "Facebook: delay before an event is posted (minutes)", Help: "Time to spot a typo and cancel it from the Facebook page in the console. 0-1440.", Kind: "int"},
+	{Key: "fb_weekend_on", Label: "Facebook: weekly \"this weekend\" post", Help: "Once a week, a list of the approved events on the coming Saturday and Sunday. Skipped when there is nothing on.", Kind: "bool"},
+	{Key: "fb_weekend_day", Label: "Facebook: weekend post day", Help: "Which day the weekend list is posted (Thursday or Friday works best).", Kind: "select-day"},
+	{Key: "fb_weekend_hour", Label: "Facebook: weekend post hour (local)", Help: "Hour of the day, 0-23.", Kind: "int"},
 }
 
 func (a *App) settingDefault(key string) string {
@@ -48,6 +53,12 @@ func (a *App) settingDefault(key string) string {
 		return "We are doing a little maintenance. Please try again in a few minutes."
 	case "events_window_days":
 		return "400"
+	case "fb_events_delay":
+		return "30"
+	case "fb_weekend_day":
+		return "4"
+	case "fb_weekend_hour":
+		return "17"
 	}
 	return ""
 }
@@ -72,6 +83,9 @@ func (a *App) saveSettings(form map[string]string) (string, error) {
 	vals := map[string]string{}
 	for _, d := range settingDefs {
 		v := strings.TrimSpace(form[d.Key])
+		if v == "" && (d.Kind == "int" || d.Kind == "select-day") {
+			v = a.settingDefault(d.Key) // the page promises blank means default
+		}
 		switch d.Kind {
 		case "bool":
 			if v == "1" || v == "on" {
@@ -97,12 +111,20 @@ func (a *App) saveSettings(form map[string]string) (string, error) {
 				if n < 30 || n > 400 {
 					return "", fmt.Errorf("events window must be 30-400 days")
 				}
+			case "fb_events_delay":
+				if n < 0 || n > 1440 {
+					return "", fmt.Errorf("Facebook delay must be 0-1440 minutes")
+				}
+			case "fb_weekend_hour":
+				if n < 0 || n > 23 {
+					return "", fmt.Errorf("Facebook weekend post hour must be 0-23")
+				}
 			}
 			v = fmt.Sprint(n)
 		case "select-day":
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 || n > 6 {
-				return "", fmt.Errorf("weekly day must be 0-6")
+				return "", fmt.Errorf("%s must be 0-6", d.Label)
 			}
 			v = fmt.Sprint(n)
 		default:

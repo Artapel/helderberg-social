@@ -315,7 +315,7 @@ func TestMigrateSubscribersV2ToV3(t *testing.T) {
 	}
 	var v string
 	_ = db.QueryRow(`SELECT value FROM meta WHERE key='schema_version'`).Scan(&v)
-	if v != "3" {
+	if v != fmt.Sprint(schemaVersion) {
 		t.Fatalf("version %s", v)
 	}
 	// A phone-only row is now allowed; a row with neither is not.

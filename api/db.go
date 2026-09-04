@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 3
+const schemaVersion = 4
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -104,6 +104,9 @@ var schema = []string{
 	`CREATE TABLE IF NOT EXISTS req_stats (day TEXT NOT NULL, route TEXT NOT NULL, status INTEGER NOT NULL, n INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, route, status))`,
 	`CREATE TABLE IF NOT EXISTS pageviews (day TEXT NOT NULL, path TEXT NOT NULL, views INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, path))`,
 	`CREATE TABLE IF NOT EXISTS pv_uniques (day TEXT NOT NULL, path TEXT NOT NULL, iph TEXT NOT NULL, PRIMARY KEY (day, path, iph))`,
+	`CREATE TABLE IF NOT EXISTS fb_posts (id INTEGER PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('event','weekend','manual')), ref TEXT NOT NULL DEFAULT '', message TEXT NOT NULL, link TEXT NOT NULL DEFAULT '', due_at TEXT NOT NULL, status TEXT NOT NULL CHECK (status IN ('queued','posted','failed','cancelled')), fb_id TEXT NOT NULL DEFAULT '', err TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, posted_at TEXT NOT NULL DEFAULT '', tries INTEGER NOT NULL DEFAULT 0)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS fb_posts_ref ON fb_posts (kind, ref) WHERE ref <> ''`,
+	`CREATE INDEX IF NOT EXISTS fb_posts_due ON fb_posts (status, due_at)`,
 	`CREATE TABLE IF NOT EXISTS blocklist (id INTEGER PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('ip','email')), value TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE (kind, value))`,
 }
 
@@ -347,6 +350,7 @@ func (a *App) housekeeping() {
 		{`DELETE FROM tokens_used WHERE used_at < ?`, []any{cut(45 * 24 * time.Hour)}},
 		{`DELETE FROM wa_seen WHERE seen_at < ?`, []any{cut(7 * 24 * time.Hour)}},
 		{`DELETE FROM mail_log WHERE sent_at < ?`, []any{cut(30 * 24 * time.Hour)}},
+		{`DELETE FROM fb_posts WHERE status IN ('posted','failed','cancelled') AND created_at < ?`, []any{cut(180 * 24 * time.Hour)}},
 		{`DELETE FROM subscribers WHERE confirmed_at IS NULL AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},
 		{`DELETE FROM events WHERE status = 'pending_email' AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},
 		{`DELETE FROM listing_submissions WHERE status = 'pending_email' AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},

@@ -42,6 +42,9 @@ down: events fall back to `data/data.js` and the forms show a copy-out block.
 The site is managed from the API's own console at `https://api.helderbergsocial.co.za/admin`
 (emailed link + Google Authenticator; runbook in `docs/api.md`, *The admin console*).
 
+Facebook posting is optional: `HS_FB_PAGE_ID` + `HS_FB_PAGE_TOKEN` in `.env` (`docs/facebook.md`,
+"Automatic posting"), then switch the automatic kinds on under Settings in the console.
+
 WhatsApp updates are optional and automatic once Meta's side is set up (`docs/whatsapp.md`:
 business verification, a dedicated number, two approved templates, four `.env` values).
 

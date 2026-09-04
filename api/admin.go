@@ -123,6 +123,11 @@ func (a *App) decide(kind, id, action string) (string, error) {
 		if n, _ := res.RowsAffected(); n == 0 {
 			return "That event was already decided or does not exist.", nil
 		}
+		if status == "approved" {
+			a.fbQueueEvent(id)
+		} else {
+			a.fbCancelRef("event", id)
+		}
 		return fmt.Sprintf("Event %q is now %s.", id, status), nil
 	case "listing:accept", "listing:reject":
 		status := "accepted"

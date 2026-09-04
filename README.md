@@ -24,7 +24,7 @@ folder with any web server.
 | `docs/` | Domain registration, deployment, content verification. |
 
 Dynamic parts live in `api/` (Go, one container): approved events, daily/weekly email
-or WhatsApp digests, public submissions with email verification, a source watcher that re-checks
+or WhatsApp digests, posting to the Facebook page, public submissions with email verification, a source watcher that re-checks
 organisers' pages and calendars, and an admin console (emailed link + Google
 Authenticator) for moderation, subscribers, sources, analytics, logs and settings.
 See `docs/api.md`.

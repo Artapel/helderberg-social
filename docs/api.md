@@ -20,6 +20,7 @@ image, non-root, read-only filesystem, all capabilities dropped.
 | Events | `GET /api/events` serves every approved event (ETag, 5 min cache). The site merges these over the fallback list in `data.js` at load time (`HS.onEvents`). |
 | Email updates | Double opt-in. Subscriber picks daily or weekly, a 7/14/30-day horizon, towns and categories. Daily digests go out at `HS_DIGEST_HOUR` local time, weekly on `HS_WEEKLY_DAY`. Empty digests are skipped. Every mail has `List-Unsubscribe` (one-click) and a signed unsubscribe link; unsubscribing deletes the row. |
 | WhatsApp updates | The same subscription over WhatsApp instead of email (`channel='whatsapp'`, a phone number, no email). Confirmation is a button tap on a template message, the digest is a template with a one-line list plus a *See all events* button to a personalised page, STOP or the Unsubscribe button deletes the row. Automatic end to end; needs the Meta-side setup in `docs/whatsapp.md`. Off until `HS_WA_*` are set. |
+| Facebook posting | Posts to the Facebook page through the Graph API from a queue the scheduler drains one item a minute: each approved event after a delay (off by default), a weekly "this weekend" list (off by default), and posts the admin writes or schedules in the console. One post per event ever; a queued post is cancelled when its event is taken back. Off until `HS_FB_*` are set; runbook in `docs/facebook.md`. |
 | Submissions | Events and listings from the public. Submitter verifies by email; the item then lands in the moderation queue and the admin gets a mail with approve/reject links. Approved events publish immediately. Approved listings produce a ready-to-paste `data.js` block in the queue (listings stay curated in the repo). |
 | Moderation | `moderate.html` asks for the admin address and emails a 12-hour sign-in link. The queue shows pending items, sources and lets the admin run a source check or preview a digest. No passwords exist anywhere. |
 | Source watcher | Every `HS_WATCH_INTERVAL` (6 h) the sources in `api/sources.json` are fetched politely (1.5 s apart, 2 MB cap, 25 s timeout, identified user agent). ICS feeds yield events straight into the queue (deduplicated per UID). Plain pages are hashed after stripping tags and noise; a change emails the admin a "look at this" line. It never publishes anything on its own. |
@@ -45,6 +46,10 @@ image, non-root, read-only filesystem, all capabilities dropped.
 - **Headers.** `nosniff`, `no-referrer`, `X-Frame-Options: DENY`,
   `Content-Security-Policy: default-src 'none'` (admin pages allow inline style),
   HSTS, `Cache-Control: no-store` on everything but `/api/events`.
+- **Facebook.** The Page token lives only in the container's environment and is
+  never logged or shown (the Settings page prints its length). Every post is
+  built from an approved event or typed by a signed-in admin; nothing public
+  can reach the queue. Posts are never deleted from Facebook by the API.
 - **WhatsApp.** Webhooks are accepted only with a valid `X-Hub-Signature-256`
   (HMAC with the app secret) and deduplicated by message id; the sender's
   number is the only identity ever acted on, so a crafted payload cannot
@@ -100,11 +105,12 @@ sessions, audited), then remove it.
 | Listings | every submission by status, delete old ones |
 | Subscribers | email address or WhatsApp number (channel pill), filter by channel, search either, edit preferences, resend/force confirmation (email link or WhatsApp template), remove, block address or number, add by hand (either), CSV export |
 | Digests | schedule and next runs, preview to yourself, send now (with confirmation), 30-day history |
+| Facebook | connection check, queue with cancel/post now, history with permalinks and retry, write or schedule a post, post any approved event, preview and queue this weekend's list |
 | Sources | add/edit/enable/disable/delete watched pages and ICS feeds, check one or all now, forget a source's memory |
 | Analytics | page views and visitors per day, top pages, API routes and errors, subscriber growth, events by town/category (7/30/90 days) |
 | Logs | last 300 requests, mail log (hashes only), audit log, last 500 app log lines |
 | Security | authenticator status, regenerate backup codes, remove authenticator, active sessions with revoke, sign-in history, blocklist |
-| Settings | runtime overrides without restart: digest hour/day, pause digests, watch interval, pause watching, extra notification addresses, announcement banner, maintenance mode, pause submissions/subscriptions, public events window; read-only view of the environment |
+| Settings | runtime overrides without restart: digest hour/day, pause digests, watch interval, pause watching, extra notification addresses, announcement banner, maintenance mode, pause submissions/subscriptions, public events window, Facebook automatic posting (approved events + delay, weekend list + day/hour); read-only view of the environment |
 | System | version, uptime, memory, DB size and table counts, housekeeping now, integrity check, WAL checkpoint, test email, WhatsApp configuration + template status + test message, outbound-mail DNS checks, JSON export of everything, snapshots (`VACUUM INTO`, newest 14 kept) with download |
 
 **Settings the site reacts to.** `/api/events` carries a `site` object
@@ -134,6 +140,7 @@ Copy `api/.env.example` to `api/.env` (mode 600) and fill in:
 | `HS_SMTP_HOST`, `HS_SMTP_PORT`, `HS_SMTP_USER`, `HS_SMTP_PASS` | Optional relay. Leave the host empty for direct delivery (see *Outbound mail*). |
 | `HS_MAIL_IP`, `HS_MAIL_HELO`, `HS_DKIM_SELECTOR` | Public sending address (for SPF and the PTR check), EHLO name (defaults to the API host), DKIM selector (`hs1`; empty disables signing). |
 | `HS_WA_PHONE_ID`, `HS_WA_TOKEN`, `HS_WA_APP_SECRET`, `HS_WA_VERIFY_TOKEN` | WhatsApp Business Platform: sending number id, permanent system-user token, app secret (webhook signature), webhook verify token. All four or none. `HS_WA_WABA_ID` (template status on the System page) and `HS_ADMIN_PHONE` (test button) are optional. See `docs/whatsapp.md`. |
+| `HS_FB_PAGE_ID`, `HS_FB_PAGE_TOKEN` | Facebook page posting: the numeric page id and a non-expiring Page access token. Both or none. `HS_FB_API_VERSION` defaults to `v22.0`. See `docs/facebook.md`. |
 | `HS_BIND_IP` | Interface the container port binds to on the host (the internal address, never `0.0.0.0`). |
 | `HS_TZ`, `HS_DIGEST_HOUR`, `HS_WEEKLY_DAY`, `HS_WATCH_INTERVAL` | Defaults: `Africa/Johannesburg`, 6, 4 (Thursday), 6h. |
 | `HS_TOTP_RESET` | Set to `1` for one restart only, to wipe a lost authenticator and every session (audited). Remove it again straight away. |

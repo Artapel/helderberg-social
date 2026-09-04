@@ -83,9 +83,69 @@ Then a steady rhythm: Thursday "this weekend" post, one listing spotlight per we
 page on the site so the OG card renders), and the site's own new events as Facebook Events with
 the same details. Tag the town in each post ("Strand", "Gordon's Bay") for local reach.
 
-## Automating it later
+## Automatic posting (built 2026-09-04, off until the token is set)
 
-Facebook's Graph API needs a Meta developer app with a Page access token
-(`pages_manage_posts`, `pages_read_engagement`) approved for the page. That token is a credential:
-it goes in `api/.env` as `HS_FB_PAGE_TOKEN` on the server, never in this repo, and the API's
-weekly digest job can then post the same "this weekend" summary to the page. Not built yet.
+The API can post to the page itself through the Graph API. It is off until `api/.env` has
+`HS_FB_PAGE_ID` and `HS_FB_PAGE_TOKEN`; the console's **Facebook** page then shows what is
+queued, what went out (with the permalink) and what failed, and the two automatic kinds are
+each behind a switch under **Settings** that defaults to off:
+
+| What | When | Switch |
+|---|---|---|
+| **Approved event** | each event you approve in the console is posted after a delay (default 30 min, so a typo can still be cancelled from the queue). Title, date/time, town, cost, summary, the event's own link as the card. One post per event, ever; taking the event back or deleting it cancels a queued post. Past events are skipped. | `Facebook: post approved events` + delay |
+| **This weekend** | once a week (default Thursday 17:00) a list of the approved events on the coming Saturday and Sunday, capped at 12 lines, linking to `/events.html` and `/submit.html`. Skipped when nothing is on. | `Facebook: weekly "this weekend" post` + day + hour |
+| **Written by you** | the Facebook page in the console: text, optional link, now or a local time up to 60 days ahead. | none, always allowed |
+
+The console page can also queue any approved event by hand and queue this weekend's list right
+now (with a preview of the exact text). Posts leave **one a minute, oldest first**, so a burst of
+approvals never floods the page. A failed post retries three times a quarter-hour apart, except
+when Meta says the token or permission is wrong (codes 190, 200-299, 10, 100), which fails at
+once and shows on the page. Nothing here ever deletes a post from Facebook.
+
+Meta's `scheduled_publish_time` is deliberately not used: our own queue means a scheduled post
+can be inspected and cancelled in the console, and the container keeps the only copy of the
+token. Page **Events** cannot be created through the API any more (Meta removed it), so an
+event post is a normal post with the details in the text.
+
+### Getting a Page token that does not expire
+
+You need the same Meta business portfolio the page lives in, an app, and a system user. If the
+WhatsApp setup in `docs/whatsapp.md` has been done, steps 1-2 and 4 are already there.
+
+1. **App.** developers.facebook.com → the "Helderberg Social" app (type *Business*), or create
+   it. Under *App settings → Basic* fill in the privacy policy URL
+   (`https://helderbergsocial.co.za/privacy.html`) and a category, then switch the app to
+   **Live**. Posts made by an app in *Development* mode are visible only to people with a role
+   on the app, which looks like success in the console and nothing on the page.
+2. **Permissions.** Under *Use cases* (or *App review → Permissions and features*) make sure
+   `pages_manage_posts` and `pages_read_engagement` are there with *Standard access*. Standard
+   access is enough for a page the token's user administers; App Review is only for other
+   people's pages.
+3. **Page ID.** The numeric id, not the username. It is the `asset_id` in any Meta Business
+   Suite URL for the page, and under *About → Page transparency* on the page. This page's id
+   is `1352989477889743` (the `profile.php?id=61594290261232` number is the profile, not the
+   page; the Graph API wants the page id).
+4. **System user.** business.facebook.com → *Settings → Users → System users* → the `hs-api`
+   system user (Admin), or add one. *Add assets → Pages* → this page → **Manage page** (full
+   control). Then **Generate new token**: pick the app, expiry **Never**, permissions
+   `pages_manage_posts`, `pages_read_engagement`, `pages_show_list`. Copy the token once.
+5. **Turn the system-user token into the Page token.** The token from step 4 is a user token
+   for the system user; the API wants the page's own token. On the Docker host (never on a
+   machine whose shell history is shared):
+
+   ```
+   read -rs SU_TOKEN; echo
+   curl -s -H "Authorization: Bearer $SU_TOKEN" \
+     "https://graph.facebook.com/v22.0/me/accounts?fields=id,name,access_token" | python3 -m json.tool
+   ```
+
+   Find the entry whose `id` is the page id and take its `access_token`. Because it was derived
+   from a never-expiring system-user token it does not expire either.
+6. **`.env` and deploy.** `HS_FB_PAGE_ID=1352989477889743`, `HS_FB_PAGE_TOKEN=<that token>`,
+   then `bash api/deploy.sh`. On the console's Facebook page press **Check the connection**:
+   it must answer with the page's name. Then, if you want the automatic kinds, switch them on
+   under Settings.
+
+If the token ever dies (someone removes the system user, the page changes ownership), every
+queued post fails with code 190 and the Facebook page in the console shows it; make a new token
+and re-queue them with *Post now*.
