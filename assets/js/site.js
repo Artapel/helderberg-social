@@ -147,12 +147,16 @@
 
   /* ---------- Chrome ---------- */
   var NAV = [["index.html", "Home"], ["directory.html", "Directory"], ["events.html", "Events"], ["places.html", "Places"], ["towns.html", "Towns"], ["subscribe.html", "Get updates"], ["about.html", "About"], ["submit.html", "Add a listing", "cta"]];
+  HS.wordmark = function () {
+    var n = String(D.site.name || "Helderberg Social"), i = n.lastIndexOf(" ");
+    return i > 0 ? HS.esc(n.slice(0, i)) + " <em>" + HS.esc(n.slice(i + 1)) + "</em>" : HS.esc(n);
+  };
   HS.renderChrome = function () {
     var here = (location.pathname.split("/").pop() || "index.html").toLowerCase();
     var h = document.querySelector("[data-hs-header]");
     if (h) {
       h.className = "site-header";
-      h.innerHTML = '<div class="wrap"><a class="logo" href="index.html"><span class="logo-mark" aria-hidden="true"></span>' + HS.esc(D.site.name || "Helderberg Social") + '</a>' +
+      h.innerHTML = '<div class="wrap"><a class="logo" href="index.html" aria-label="' + HS.esc(D.site.name || "Helderberg Social") + ' home"><img class="logo-mark" src="assets/img/logo-mark.svg" alt="" width="36" height="36"><span class="wordmark">' + HS.wordmark() + '</span></a>' +
         '<button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button><nav class="nav" aria-label="Main">' +
         NAV.map(function (n) { return '<a href="' + n[0] + '" class="' + (n[2] || "") + (here === n[0] ? " active" : "") + '">' + n[1] + '</a>'; }).join("") + '</nav></div>';
       var btn = h.querySelector(".nav-toggle"), nav = h.querySelector(".nav");
@@ -161,7 +165,7 @@
     var f = document.querySelector("[data-hs-footer]");
     if (f) {
       f.className = "site-footer";
-      f.innerHTML = '<div class="wrap"><div><div class="logo" style="margin-bottom:.5rem"><span class="logo-mark" aria-hidden="true"></span>' + HS.esc(D.site.name || "") + '</div>' +
+      f.innerHTML = '<div class="wrap"><div><div class="logo" style="margin-bottom:.5rem"><img class="logo-mark" src="assets/img/logo-mark.svg" alt="" width="30" height="30"><span class="wordmark">' + HS.wordmark() + '</span></div>' +
         '<p>' + HS.esc(D.site.tagline || "") + '</p><p class="small">Listings are community-submitted. Anything marked <em>Unverified</em> has not yet been checked by us: confirm times and prices with the organiser before you go.</p>' +
         '<p class="small">© ' + new Date().getFullYear() + ' ' + HS.esc(D.site.name || "") + ' · ' + HS.esc(D.site.region || "") + '</p></div>' +
         '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
