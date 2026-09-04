@@ -128,6 +128,7 @@
       '<a class="btn ghost sm" download="' + HS.esc(e.id) + '.ics" href="' + HS.icsFor(e) + '">Add to calendar</a></div></div>';
   };
 
+  HS.hasCoords = function (l) { return !!l && Array.isArray(l.coords) && l.coords.length === 2 && typeof l.coords[0] === "number" && typeof l.coords[1] === "number"; };
   HS.map = function (el, items, opts) {
     if (!window.L || !el) return null;
     opts = opts || {};
@@ -145,7 +146,7 @@
   };
 
   /* ---------- Chrome ---------- */
-  var NAV = [["index.html", "Home"], ["directory.html", "Directory"], ["events.html", "Events"], ["places.html", "Places"], ["towns.html", "Towns"], ["about.html", "About"], ["submit.html", "Add a listing", "cta"]];
+  var NAV = [["index.html", "Home"], ["directory.html", "Directory"], ["events.html", "Events"], ["places.html", "Places"], ["towns.html", "Towns"], ["subscribe.html", "Get updates"], ["about.html", "About"], ["submit.html", "Add a listing", "cta"]];
   HS.renderChrome = function () {
     var here = (location.pathname.split("/").pop() || "index.html").toLowerCase();
     var h = document.querySelector("[data-hs-header]");
@@ -164,8 +165,18 @@
         '<p>' + HS.esc(D.site.tagline || "") + '</p><p class="small">Listings are community-submitted. Anything marked <em>Unverified</em> has not yet been checked by us: confirm times and prices with the organiser before you go.</p>' +
         '<p class="small">© ' + new Date().getFullYear() + ' ' + HS.esc(D.site.name || "") + ' · ' + HS.esc(D.site.region || "") + '</p></div>' +
         '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
-        '<div><h4>Get involved</h4><ul><li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="about.html">About this site</a></li></ul></div></div>';
+        '<div><h4>Get involved</h4><ul><li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li></ul></div></div>';
     }
+    HS.updateCounts();
+    document.querySelectorAll("form[data-hs-subscribe]").forEach(function (f) {
+      f.addEventListener("submit", function (e) {
+        e.preventDefault();
+        try { sessionStorage.setItem("hs-sub-email", (f.querySelector("input[type=email]") || {}).value || ""); } catch (err) {}
+        location.href = "subscribe.html";
+      });
+    });
+  };
+  HS.updateCounts = function () {
     document.querySelectorAll("[data-hs-count]").forEach(function (el) {
       var k = el.getAttribute("data-hs-count");
       var n = k === "events" ? HS.upcomingEvents().length : k === "towns" ? D.towns.length : D.listings.filter(function (l) { return k === "all" || l.type === k; }).length;
@@ -173,5 +184,66 @@
     });
   };
 
+  /* ---------- API (optional: the site works fully static without it) ----------
+     Approved events live in the API's database. data.js only carries a small
+     offline fallback. Pages register a render function with HS.onEvents(fn):
+     it runs once immediately with the static data and again with `true` if
+     the API returns something different. */
+  HS.api = String(D.site.apiBase || "").replace(/\/+$/, "");
+  HS.post = function (path, body) {
+    return fetch(HS.api + path, {
+      method: "POST", credentials: "omit", mode: "cors",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (typeof j !== "object" || j === null) j = {};
+        if (!r.ok && !j.error) j.error = r.status === 429 ? "Too many requests from your connection. Please wait a minute and try again." : "The server could not process that (" + r.status + ").";
+        if (!r.ok) j.ok = false;
+        return j;
+      });
+    });
+  };
+  var hooks = [], loaded = false, changed = false;
+  HS.onEvents = function (fn) {
+    fn(false);
+    if (loaded) { if (changed) fn(true); } else hooks.push(fn);
+  };
+  function mergeEvents(list) {
+    var diff = false;
+    (list || []).forEach(function (e) {
+      if (!e || !e.id || !e.date || !e.title) return;
+      var cur = HS.events[e.id];
+      if (!cur) { D.events.push(e); diff = true; return; }
+      var merged = Object.assign({}, cur, e);
+      if (JSON.stringify(merged) !== JSON.stringify(cur)) { Object.assign(cur, e); diff = true; }
+    });
+    if (diff) HS.events = index(D.events);
+    return diff;
+  }
+  HS.loadEvents = function () {
+    if (!HS.api || !window.fetch) { loaded = true; return; }
+    var key = "hs-events-v1", cached = null;
+    try { cached = JSON.parse(sessionStorage.getItem(key) || "null"); } catch (e) {}
+    var apply = function (list) {
+      changed = mergeEvents(list) || changed;
+      loaded = true;
+      var h = hooks; hooks = [];
+      if (changed) { h.forEach(function (fn) { fn(true); }); HS.updateCounts(); }
+    };
+    if (cached && cached.at && Date.now() - cached.at < 5 * 60 * 1000 && Array.isArray(cached.events)) { apply(cached.events); return; }
+    var ctrl = window.AbortController ? new AbortController() : null;
+    if (ctrl) setTimeout(function () { ctrl.abort(); }, 6000);
+    fetch(HS.api + "/api/events", { credentials: "omit", mode: "cors", signal: ctrl && ctrl.signal, headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var list = j && Array.isArray(j.events) ? j.events : [];
+        try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), events: list })); } catch (e) {}
+        apply(list);
+      })
+      .catch(function () { apply([]); });
+  };
+
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", HS.renderChrome); else HS.renderChrome();
+  HS.loadEvents();
 })();

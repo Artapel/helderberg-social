@@ -19,6 +19,8 @@ import json, os, sys, urllib.request
 
 DOMAIN = "helderbergsocial.co.za"
 GH_USER = "artapel"
+API_HOST = "api"            # api.helderbergsocial.co.za -> the reverse proxy in front of the API container
+API_IP = "41.221.5.39"
 API = "https://api.hostafrica.com"
 TTL = 14400
 # From docs.github.com "Managing a custom domain for your GitHub Pages site", 2026-09-02.
@@ -79,6 +81,16 @@ elif www:
 else:
     print(f"add    CNAME www -> {target}")
     mutate("/dns/add-record", {"name": "www", "type": "CNAME", "content": target, "ttl": TTL})
+
+apirec = next((r for r in records if r["type"] == "A" and r["name"] == API_HOST), None)
+if apirec and apirec["content"] == API_IP:
+    print(f"keep   A     {API_HOST} -> {API_IP}")
+elif apirec:
+    print(f"edit   A     {API_HOST} -> {API_IP}  (was {apirec['content']})")
+    mutate("/dns/edit-record", dict(apirec, content=API_IP))
+else:
+    print(f"add    A     {API_HOST} -> {API_IP}")
+    mutate("/dns/add-record", {"name": API_HOST, "type": "A", "content": API_IP, "ttl": TTL})
 
 if not DRY:
     after = api("/dns/get-zone", {"domain_id": domain_id})["data"]["records"]

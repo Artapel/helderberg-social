@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdnjs.cloudflare.com https://*.tile.openstreetmap.org; connect-src 'self' https://api.helderbergsocial.co.za; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests">
-<title>The towns — Somerset West, Strand, Gordon's Bay and Sir Lowry's Pass</title>
-<meta name="description" content="A short guide to each Helderberg town and what happens there: Somerset West, Strand, Gordon's Bay and Sir Lowry's Pass.">
+<meta name="robots" content="noindex,nofollow">
+<title>Moderation — Helderberg Social</title>
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -18,10 +18,14 @@
 
 <main id="main">
   <section>
-    <div class="wrap">
-      <h1>The Helderberg towns</h1>
-      <p class="muted" style="max-width:60ch">Four very different places within twenty minutes of each other, all under the same mountain.</p>
-      <div id="towns"></div>
+    <div class="wrap-narrow">
+      <h1>Moderation</h1>
+      <p class="muted">For the site's moderator. There is no password: enter the moderator address and a sign-in link is emailed to it. The link works for twelve hours.</p>
+      <form id="f" class="panel" novalidate>
+        <div class="field"><label for="email">Moderator email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email"><div class="err"></div></div>
+        <div class="row"><button class="btn" type="submit" id="send">Email me a sign-in link</button></div>
+      </form>
+      <div id="done" class="notice ok" hidden style="margin-top:1rem"></div>
     </div>
   </section>
 </main>
@@ -30,6 +34,6 @@
 
 <script src="data/data.js"></script>
 <script src="assets/js/site.js"></script>
-<script src="assets/js/pages/towns.js"></script>
+<script src="assets/js/pages/moderate.js"></script>
 </body>
 </html>

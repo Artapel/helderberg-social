@@ -31,6 +31,14 @@ DNS records in the zone (from GitHub's docs, 2026-09-02):
 GitHub also recommends verifying the domain in account Settings → Pages → Add a domain (a TXT
 record) before or soon after adding it, to prevent takeover if the CNAME is ever removed.
 
+## The API (events, email updates, submissions)
+
+The static site is the whole public surface, but the forms, the email digests and the
+approved-events feed come from one small container on our own Docker host behind Nginx
+Proxy Manager at `https://api.helderbergsocial.co.za`. Build, configuration, security
+model and runbook are in [`docs/api.md`](api.md). The site keeps working if the API is
+down: events fall back to `data/data.js` and the forms show a copy-out block.
+
 ## Alternatives
 
 The site is static, so anything that serves files works. There is no build step: copy the folder

@@ -1,0 +1,43 @@
+# Helderberg Social API on the Docker host. Published only on the LAN
+# address, so the reverse proxy (nginx-proxy-manager) is the sole way in.
+name: helderberg-social
+services:
+  api:
+    build:
+      context: .
+      args:
+        VERSION: ${HS_VERSION:-dev}
+    image: helderberg-social-api:${HS_VERSION:-dev}
+    container_name: helderberg-social-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HS_LISTEN: ":8102"
+      HS_DATA_DIR: /data
+    ports:
+      - "${HS_BIND_IP:-127.0.0.1}:8102:8102"
+    volumes:
+      - hs-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 256m
+    pids_limit: 64
+    healthcheck:
+      # scratch image has no curl; the binary self-checks via the health route
+      test: ["CMD", "/hs-api", "-healthcheck"]
+      interval: 60s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  hs-data:

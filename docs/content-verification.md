@@ -41,3 +41,59 @@ the page before launch, especially the 4 September opening night.
 2. Confirm name, days/times, cost, and that it is still running.
 3. Fill `website`, correct `schedule`, fix `coords` (drop `coordsApprox`).
 4. Set `verified: true` and note the date in a comment beside it.
+
+## Research pass, 4 September 2026
+
+44 listings were added from a desk search of Helderberg wine estates, markets,
+sports and social clubs, community groups and venues. Every one is `verified: false` and
+**none has coordinates**: the map skips them until a real position is confirmed on the
+organiser's own page or on a visit (geocoders have placed Helderberg addresses in the wrong
+town before, so do not paste a geocoder result). Each needs the four steps above plus
+`coords`.
+
+| id | name | type | website | note |
+|---|---|---|---|---|
+| `avontuur-estate` | Avontuur Estate | place | <https://www.tripadvisor.com/Attraction_Review-g469396-d5888097-Reviews-Avontuur_Wine_Estate-Somerset_West_Western_Cape.html> |  |
+| `idiom-restaurant-wine-tasting-centre` | Idiom Restaurant & Wine Tasting Centre | place | <https://idiom.co.za> |  |
+| `journeys-end-vineyards` | Journey's End Vineyards | place | <https://journeysend.co.za> |  |
+| `longridge-wine-estate` | Longridge Wine Estate | place | <https://longridge.co.za> |  |
+| `wedderwill-wine-estate` | Wedderwill Wine Estate | place | none recorded | Limited independent verification of current opening status; treat opening hours as unconfirmed |
+| `waterkloof-wines` | Waterkloof Wines | place | <https://www.waterkloofwines.co.za> |  |
+| `country-craft-market-southeys-vines` | Country Craft Market at Southey's Vines | activity | <https://countrycraftmarket.org> |  |
+| `gordonsbaai-kersmark` | Gordonsbaai Kersmark (Gordon's Bay Christmas Market) | activity | <https://capemarkets.co.za/christmas-markets/gordonsbaai-kersmark/> |  |
+| `wine-lands-cycling-club` | Wine Lands Cycling Club | group | <https://www.winelandscyclingclub.co.za> | Appears to be the renamed/expanded successor to Wannabees Cycling Club already listed on the site; kept separate since trail network, permit system and membership numbers differ materially from what's on file |
+| `southey-vines-geelsloot-bike-park` | Southey Vines / Geelsloot Bike Park | place | none recorded |  |
+| `u3a-helderberg` | U3A Helderberg | group | <https://sites.google.com/site/u3ahelderberg/home> |  |
+| `u3a-helderberg-hikers` | U3A Helderberg Hikers | group | <https://sites.google.com/site/u3ahelderberghikers> |  |
+| `vergelegen-trail-guided-hike` | The Vergelegen Trail (guided hike) | activity | <https://vergelegen.co.za/vergelegen-trail/> | Confirmed 2025 season dates only (20 Sep, 18 Oct, 1/15/29 Nov); 2026 season dates not yet published as of this research |
+| `rotary-club-somerset-west` | Rotary Club of Somerset West | group | <https://www.facebook.com/RotaryClubofSomersetWest/> |  |
+| `somerset-west-ratepayers-association` | Somerset West Ratepayers Association (SWRA) | group | <https://swratepayers.co.za> |  |
+| `somerset-west-community-association` | Somerset West Community Association (SWCA) | group | none recorded | Newly founded (2025); limited independent info beyond this news article |
+| `helderberg-chess-club` | Helderberg Chess Club | group | <https://chesshub.org.za/directory/helderberg-chess-club/> |  |
+| `grand-slam-bridge-club` | Grand Slam Bridge Club | group | none recorded | Sources disagree on exact meeting day (Tuesday vs Wednesday) - unconfirmed |
+| `helderberg-village-bridge-canasta-club` | Bridge & Canasta Club at The Lord Somerset Clubhouse | group | none recorded |  |
+| `somerset-west-cricket-club` | Somerset West Cricket Club (SWCC) | group | <https://swcc.co.za> |  |
+| `helderberg-rugby-club` | Helderberg Rugby Football Club | group | <https://helderbergrugbyklub.co.za> |  |
+| `somerset-west-golf-club` | Somerset West Golf Club | place | none recorded |  |
+| `swcc-tennis-club` | Somerset West Country Club Tennis (SWCC Tennis) | group | <https://www.facebook.com/SWCCTennis> |  |
+| `somerset-west-bowls-club-country-club` | Somerset West Bowls Club | group | <https://www.facebook.com/groups/somersetwestbowls/> |  |
+| `helderberg-bowling-club` | Helderberg Bowling Club | group | <https://www.facebook.com/helderbergbowls> |  |
+| `fairview-golf-estate` | Fairview Golf Estate | place | <https://fairview-golfestate.co.za> |  |
+| `helderberg-village-golf-course` | Helderberg Village Golf Course | place | none recorded |  |
+| `helderberg-photographic-society` | Helderberg Photographic Society | group | <https://helderbergphoto.com> |  |
+| `helderberg-village-choir` | Helderberg Village Choir | group | none recorded |  |
+| `helderberg-village-arts-crafts-society` | Helderberg Village Arts & Crafts Society | group | none recorded |  |
+| `playhouse-theatre-somerset-west` | The Playhouse Theatre, Somerset West | place | none recorded |  |
+| `monkey-town-venue` | Monkey Town Venue | place | <https://www.monkeys.co.za> | No longer has animal/primate viewing as of April 2024; now a swimming/picnic day venue only |
+| `strand-athletics-club` | Strand Athletics Club (SAC) | group | <https://strandac.co.za> |  |
+| `helderberg-trail-running-instagram` | Helderberg Trail Running (@runhelderberg) | online | <https://www.instagram.com/runhelderberg/> |  |
+| `gordons-bay-boat-angling-club` | Gordon's Bay Boat Angling Club | group | <https://gbbac.co.za> |  |
+| `sailing-academy-gb` | Sailing Academy GB | group | <https://sailingacademy.co.za/venues/gordons-bay-yacht-club> |  |
+| `dive-and-adventure-gordons-bay` | Dive and Adventure Gordon's Bay | place | none recorded |  |
+| `asla-indoor-sports-club` | ASLA Indoor Sports Club | place | none recorded | Only found referenced in a general area guide; could not independently confirm schedule or exact address |
+| `waterstone-village` | Waterstone Village | place | <https://www.waterstonevillage.co.za> |  |
+| `somerset-west-community-facebook-group` | Somerset West Community (Facebook group) | online | <https://www.facebook.com/groups/somersetwest1/> |  |
+| `somerset-west-information-facebook-group` | Somerset West Information (Facebook group) | online | <https://www.facebook.com/groups/swest.info/> |  |
+| `somerset-west-strand-live-work-facebook-group` | I live / work in Somerset West / Strand (Facebook group) | online | <https://www.facebook.com/groups/183819464996787/> |  |
+| `helderberg-chess-academy` | Helderberg Chess Academy | group | <https://www.facebook.com/helderbergchessacademy/> | Could not confirm exact relationship to Helderberg Chess Club (same organisers, separate brand, or distinct entity) |
+| `mtb-lourensford` | MTB@Lourensford | activity | none recorded |  |

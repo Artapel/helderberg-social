@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdnjs.cloudflare.com https://*.tile.openstreetmap.org; connect-src 'self' https://api.helderbergsocial.co.za; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests">
+<title>Email updates — Helderberg Social</title>
+<meta name="description" content="Get a daily or weekly email of what's on in Somerset West, Strand, Gordon's Bay and Sir Lowry's Pass. Pick your towns and interests. Free, unsubscribe any time.">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header data-hs-header></header>
+
+<main id="main">
+  <section>
+    <div class="wrap-narrow">
+      <h1>What's on, in your inbox</h1>
+      <p class="muted">A short list of events coming up in the Helderberg, as often as you like. Only events we have checked make the list. Every email has a one-click unsubscribe link, and we never share your address. <a href="privacy.html">Privacy notice</a>.</p>
+
+      <form id="f" class="panel" novalidate>
+        <div class="field"><label for="email">Your email</label><input id="email" name="email" type="email" required maxlength="200" autocomplete="email" placeholder="you@example.com"><div class="err"></div></div>
+        <div class="filters" style="grid-template-columns:1fr 1fr">
+          <div class="field"><label>How often</label>
+            <div class="choice" id="freq"><label><input type="radio" name="frequency" value="weekly" checked>Weekly (Thursday morning)</label><label><input type="radio" name="frequency" value="daily">Every morning</label></div></div>
+          <div class="field"><label>Looking ahead</label>
+            <div class="choice" id="horizon"><label><input type="radio" name="horizon" value="7" checked>7 days</label><label><input type="radio" name="horizon" value="14">14 days</label><label><input type="radio" name="horizon" value="30">30 days</label></div></div>
+        </div>
+        <div class="field"><label>Towns <span class="muted">(none selected means all)</span></label><div class="choice" id="towns"></div></div>
+        <div class="field"><label>Interests <span class="muted">(none selected means everything)</span></label><div class="choice" id="cats"></div></div>
+        <div class="hp-field" aria-hidden="true"><label for="website">Website</label><input id="website" name="website" tabindex="-1" autocomplete="off"></div>
+        <div class="row"><button class="btn accent" type="submit" id="send">Send me the confirmation link</button><span class="small muted">You'll get one email to confirm. Nothing else until you click it.</span></div>
+      </form>
+
+      <div id="done" class="notice ok" hidden style="margin-top:1rem"></div>
+
+      <div class="panel" style="margin-top:1.5rem">
+        <h3>Already subscribed?</h3>
+        <p class="small muted" style="margin:0">Use the link at the bottom of any of our emails to change your choices (subscribe again with the same address to replace them) or to unsubscribe. Unsubscribing deletes your address from our records.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer data-hs-footer></footer>
+
+<script src="data/data.js"></script>
+<script src="assets/js/site.js"></script>
+<script src="assets/js/pages/subscribe.js"></script>
+</body>
+</html>

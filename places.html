@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdnjs.cloudflare.com https://*.tile.openstreetmap.org; connect-src 'self' https://api.helderbergsocial.co.za; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests">
 <title>Places — beaches, parks, trails and estates in the Helderberg</title>
 <meta name="description" content="Beaches, nature reserves, parks, trail centres and wine estates across the Helderberg, on a map and in a list.">
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous">
 <link rel="stylesheet" href="assets/css/site.css">
 </head>
 <body>
@@ -32,30 +33,7 @@
 
 <script src="data/data.js"></script>
 <script src="assets/js/site.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script>
-(function () {
-  var D = HS.data, $ = function (id) { return document.getElementById(id); };
-  var places = D.listings.filter(function (l) { return l.type === "place"; });
-  var cats = {};
-  places.forEach(function (p) { cats[p.category] = 1; });
-  var state = { cat: HS.qs().get("cat") || "" };
-  $("cats").innerHTML = '<button type="button" class="chip" data-cat="">All</button>' + D.categories.filter(function (c) { return cats[c.id]; }).map(function (c) { return '<button type="button" class="chip" data-cat="' + c.id + '">' + c.icon + ' ' + HS.esc(c.name) + '</button>'; }).join("");
-  var map = HS.map($("map"), places), layer = null;
-  function render() {
-    var items = places.filter(function (p) { return !state.cat || p.category === state.cat; }).sort(function (a, b) { return a.name.localeCompare(b.name); });
-    document.querySelectorAll("#cats .chip").forEach(function (b) { b.classList.toggle("on", b.getAttribute("data-cat") === state.cat); });
-    $("results").innerHTML = items.map(HS.card).join("");
-    if (map) {
-      if (layer) map.removeLayer(layer);
-      layer = L.layerGroup().addTo(map);
-      items.forEach(function (l) { L.marker(l.coords).addTo(layer).bindPopup('<b>' + HS.catIcon(l.category) + ' <a href="listing.html?id=' + encodeURIComponent(l.id) + '">' + HS.esc(l.name) + '</a></b><br>' + HS.esc(HS.townName(l.town))); });
-    }
-    HS.setQs(state);
-  }
-  $("cats").addEventListener("click", function (e) { var b = e.target.closest("[data-cat]"); if (b) { state.cat = b.getAttribute("data-cat"); render(); } });
-  render();
-})();
-</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous"></script>
+<script src="assets/js/pages/places.js"></script>
 </body>
 </html>

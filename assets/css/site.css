@@ -224,3 +224,15 @@ label { font-weight: 600; font-size: .88rem; display: block; margin-bottom: .3re
 .prose ul { padding-left: 1.2rem; }
 .skip { position: absolute; left: -999px; top: 0; background: var(--accent); color: #fff; padding: .5rem .8rem; z-index: 100; }
 .skip:focus { left: .5rem; top: .5rem; }
+
+/* Forms: subscribe / submit */
+.hp-field { position: absolute; left: -9999px; top: auto; width: 1px; height: 1px; overflow: hidden; }
+.choice { display: flex; gap: .5rem; flex-wrap: wrap; }
+.choice label { display: flex; align-items: center; gap: .4rem; padding: .45rem .8rem; border: 1px solid var(--line); border-radius: 999px; cursor: pointer; font-size: .9rem; background: var(--surface); }
+.choice input { width: auto; margin: 0; accent-color: var(--accent); }
+.choice label:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
+.subscribe-band { display: grid; grid-template-columns: 1.2fr 1fr; gap: 1.5rem; align-items: center; }
+.subscribe-band form { display: flex; gap: .5rem; }
+.subscribe-band form input { flex: 1; }
+@media (max-width: 760px) { .subscribe-band { grid-template-columns: 1fr; } .subscribe-band form { flex-direction: column; } }
+.btn[disabled] { opacity: .6; cursor: wait; }

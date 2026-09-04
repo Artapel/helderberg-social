@@ -23,6 +23,13 @@ folder with any web server.
 | `about.html`, `404.html` | Static pages. |
 | `docs/` | Domain registration, deployment, content verification. |
 
+Dynamic parts live in `api/` (Go, one container): approved events, daily/weekly email
+digests, public submissions with email verification, a moderation queue and a source
+watcher that re-checks organisers' pages and calendars. See `docs/api.md`.
+
+Page scripts live in `assets/js/pages/`; there is no inline JavaScript because every
+page ships a strict Content Security Policy.
+
 ## Content rules
 
 - `verified: true` only after a person has confirmed the listing with the organiser or their official page.
