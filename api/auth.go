@@ -84,7 +84,13 @@ func hashCookie(v string) string {
 func (a *App) secureCookies() bool { return strings.HasPrefix(a.cfg.APIURL, "https://") }
 
 func (a *App) setCookie(w http.ResponseWriter, name, value string, ttl time.Duration) {
-	c := &http.Cookie{Name: name, Value: value, Path: "/admin", HttpOnly: true, Secure: a.secureCookies(), SameSite: http.SameSiteStrictMode}
+	// Lax, not Strict: the sign-in and moderation links are clicked in a
+	// mail client, and browsers withhold Strict cookies on any navigation
+	// that starts on another site, including the redirect after /admin/auth.
+	// With Strict, the pre-sign-in cookie was never presented and every
+	// link bounced to "start again". Lax still sends nothing on cross-site
+	// POSTs, and every form carries a CSRF token besides.
+	c := &http.Cookie{Name: name, Value: value, Path: "/admin", HttpOnly: true, Secure: a.secureCookies(), SameSite: http.SameSiteLaxMode}
 	if ttl <= 0 {
 		c.MaxAge = -1
 	} else {
@@ -182,8 +188,9 @@ func sessionOf(r *http.Request) *session {
 	return s
 }
 
-// csrf tokens are bound to the session; forms carry them and SameSite=Strict
-// cookies mean a cross-site page cannot even present the session.
+// csrf tokens are bound to the session; forms carry them, and SameSite=Lax
+// cookies are never sent on a cross-site POST, so a foreign page cannot
+// present the session to a form even before the token check.
 func (a *App) csrfToken(s *session) string {
 	mac := hmac.New(sha256.New, a.cfg.Secret)
 	mac.Write([]byte("csrf:" + s.Hash))

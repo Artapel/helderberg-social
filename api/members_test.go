@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"regexp"
@@ -413,6 +414,22 @@ func TestSameOriginFormPostsAllowed(t *testing.T) {
 	}
 	if c := try("https://evil.example", "/admin/login"); c != 403 {
 		t.Fatalf("foreign origin accepted on the console: %d", c)
+	}
+	// The console's cookies must be Lax: the emailed sign-in link is a
+	// cross-site navigation and Strict cookies are withheld on the redirect
+	// that follows it (this bounced the first real sign-in).
+	pre := newClient(t, a.routes(), "10.5.0.3")
+	pre.do("POST", "/admin/login", url.Values{"email": {"admin@example.org"}})
+	body, _ := latestMail(t, testMailDir(a), "admin-login")
+	link := adminLinkRe.FindString(body)
+	req2 := httptest.NewRequest("GET", strings.TrimPrefix(link, a.cfg.APIURL), nil)
+	req2.RemoteAddr = "10.5.0.3:1"
+	rr2 := httptest.NewRecorder()
+	h.ServeHTTP(rr2, req2)
+	for _, ck := range rr2.Result().Cookies() {
+		if ck.Name == cookiePre && ck.SameSite == http.SameSiteStrictMode {
+			t.Fatal("pre-sign-in cookie is SameSite=Strict; the emailed link cannot complete")
+		}
 	}
 	if c := try("null", "/admin/login"); c != 403 {
 		t.Fatalf("opaque origin accepted: %d", c)

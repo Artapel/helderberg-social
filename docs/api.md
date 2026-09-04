@@ -97,7 +97,7 @@ that forbids scripts; every control is a form).
 "pre" cookie and goes to `/admin/2fa`. The first time it goes to `/admin/enrol`
 instead: scan the QR with Google Authenticator, confirm one code, and write down
 the 10 backup codes (shown once, stored hashed). A correct code creates a
-session: 12 h absolute, 2 h idle, cookie `HttpOnly; Secure; SameSite=Strict;
+session: 12 h absolute, 2 h idle, cookie `HttpOnly; Secure; SameSite=Lax (Strict withheld the cookie on the redirect after the emailed link, so sign-in could never finish);
 Path=/admin`. Five wrong codes kill the link. TOTP codes cannot be replayed
 inside their window; the secret is stored AES-GCM encrypted with a key derived
 from `HS_SECRET`, so a copy of the database alone cannot mint codes. All POSTs
