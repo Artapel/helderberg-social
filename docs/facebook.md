@@ -12,26 +12,34 @@ Images (rendered from the HTML in `docs/social/` with headless Chrome, sizes exa
 | `docs/social/facebook-cover.png` | Cover photo (phones crop to the middle 1250 px, all text is inside that) | 1640 x 624 |
 | `assets/img/og.png` | Link preview image for every shared page | 1200 x 630 |
 
+Profile picture and cover uploaded 2026-09-04 (Facebook auto-posted "updated their cover photo").
+
 To re-render after a change: open the `.html` in `docs/social/` with Chrome headless at the size
 in its `<title>` and `--screenshot`.
 
 ## Page setup (fields in Facebook, in the order the page editor shows them)
 
-- **Name:** Helderberg Social
-- **Username / vanity URL:** `helderbergsocial` (fallback `helderbergsocialza`)
-- **Category:** Community (secondary: Website)
-- **Bio (101 chars max):** Groups, clubs, markets, trails and what's on this weekend in Somerset West, Strand & Gordon's Bay.
-- **About / description:** Helderberg Social is a free, community-run guide to the Helderberg:
+- **Name:** Helderberg Social. *Still "Helderberg Socials, Events and Activities" (2026-09-04);
+  a rename goes through Meta review, Corne's call.*
+- **Username / vanity URL:** `helderbergsocial` (fallback `helderbergsocialza`) — not set yet
+- **Category:** Community Organization + Local & travel website (DONE 2026-09-04; Facebook has no
+  plain "Community" or "Website" category)
+- **Bio (101 chars max, DONE 2026-09-04):** Groups, clubs, markets, trails and what's on this weekend in Somerset West, Strand & Gordon's Bay.
+- **About / description (DONE 2026-09-04, with "email or WhatsApp"):** Helderberg Social is a free, community-run guide to the Helderberg:
   running and cycling clubs, hiking groups, weekend markets, wine estates, beaches, residents'
   associations and the events happening this weekend across Somerset West, Strand, Gordon's Bay
   and Sir Lowry's Pass. Anyone can add a group, place or event on the website; every listing is
   checked before it goes live. Get a weekly email of what's on at helderbergsocial.co.za.
 - **Website:** https://helderbergsocial.co.za
-- **Location:** Somerset West, Western Cape (no street address; do not show one)
-- **Service area:** Somerset West, Strand, Gordon's Bay, Sir Lowry's Pass
+- **Location:** Somerset West, Western Cape (no street address; do not show one). *A home
+  street address, personal mobile and Daisy work email were public on the page until
+  2026-09-04; all three removed.*
+- **Service area:** Somerset West, Strand, Gordon's Bay (DONE 2026-09-04). Sir Lowry's Pass is
+  not in Facebook's place list, so it cannot be added.
 - **Email / phone:** leave blank (no phone; the site has no contact address yet, see
   `site.contactEmail` in data.js)
-- **Action button:** "Learn more" -> https://helderbergsocial.co.za
+- **Action button:** "Learn more" -> https://helderbergsocial.co.za (DONE 2026-09-04; replaced a
+  WhatsApp button that pointed at Corne's personal number)
 - **Hours:** Always open (it is a website)
 - **Privacy:** post visibility Public; profile visibility Public; page transparency on
 - **Settings -> Page setup -> Audience and visibility:** Followers can comment: yes; profanity
