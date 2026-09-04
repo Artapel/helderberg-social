@@ -151,6 +151,16 @@
     var n = String(D.site.name || "Helderberg Social"), i = n.lastIndexOf(" ");
     return i > 0 ? HS.esc(n.slice(0, i)) + " <em>" + HS.esc(n.slice(i + 1)) + "</em>" : HS.esc(n);
   };
+  /* Footer "Follow" column, built only from links set in data.js site.social. */
+  HS.followBlock = function () {
+    var s = D.site.social || {}, items = [];
+    if (s.facebook && /^https:\/\/(www\.)?facebook\.com\//.test(s.facebook)) {
+      items.push('<li><a href="' + HS.esc(s.facebook) + '" target="_blank" rel="noopener">' + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 22v-8h2.7l.4-3.2h-3.1V8.8c0-.9.3-1.6 1.6-1.6h1.7V4.4c-.3 0-1.3-.1-2.5-.1-2.5 0-4.1 1.5-4.1 4.2v2.3H7.4V14h2.8v8h3.3z"/></svg>' + 'Facebook</a></li>');
+    }
+    items.push('<li><a href="subscribe.html">Email digest</a></li>');
+    return '<div class="follow"><h4>Follow</h4><ul>' + items.join("") + '</ul><p class="small">Share the site: <a href="https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(HS.siteURL()) + '" target="_blank" rel="noopener">post it on Facebook</a></p></div>';
+  };
+  HS.siteURL = function () { return "https://" + (D.site.domain || location.host) + "/"; };
   HS.renderChrome = function () {
     var here = (location.pathname.split("/").pop() || "index.html").toLowerCase();
     var h = document.querySelector("[data-hs-header]");
@@ -169,7 +179,8 @@
         '<p>' + HS.esc(D.site.tagline || "") + '</p><p class="small">Listings are community-submitted. Anything marked <em>Unverified</em> has not yet been checked by us: confirm times and prices with the organiser before you go.</p>' +
         '<p class="small">© ' + new Date().getFullYear() + ' ' + HS.esc(D.site.name || "") + ' · ' + HS.esc(D.site.region || "") + '</p></div>' +
         '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
-        '<div><h4>Get involved</h4><ul><li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li></ul></div></div>';
+        '<div><h4>Get involved</h4><ul><li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li></ul></div>' +
+        HS.followBlock() + '</div>';
     }
     HS.updateCounts();
     document.querySelectorAll("form[data-hs-subscribe]").forEach(function (f) {

@@ -19,6 +19,10 @@ window.HS_DATA = {
     // Fallback inbox for the submit form when the API is unreachable, and the contact shown in the privacy notice.
     submitEmail: "",
     contactEmail: "",
+    // Where the site lives on social media. Rendered in the footer and used for sharing.
+    social: { facebook: "https://www.facebook.com/profile.php?id=61594290261232" },
+    // Where the site lives on social media. Rendered in the footer and used for sharing.
+    social: { facebook: "https://www.facebook.com/profile.php?id=61594290261232" },
     region: "Helderberg, Western Cape",
     center: [-34.12, 18.86],
     zoom: 12

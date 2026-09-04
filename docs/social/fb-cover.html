@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Facebook cover (1640x624; phones crop to the middle 1250px)</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { width: 1640px; height: 624px; overflow: hidden; background: #0f151c; font-family: "Inter", system-ui, sans-serif; color: #e8edf2; position: relative; -webkit-font-smoothing: antialiased; }
+  .sky { position: absolute; inset: 0; background:
+    radial-gradient(1100px 480px at 82% 0%, rgba(255,194,122,.6), rgba(242,107,58,.28) 45%, transparent 72%),
+    linear-gradient(180deg, #0f4c5c 0%, #1b6f80 48%, #2a93a5 100%); }
+  .haze { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,21,28,0) 50%, rgba(15,21,28,.85) 100%); }
+  .mtn { position: absolute; left: 0; right: 0; bottom: 0; height: 250px; }
+  /* Everything important sits inside the 1250px-wide safe zone in the middle. */
+  .safe { position: absolute; left: 195px; width: 1250px; top: 0; bottom: 0; }
+  .logo { position: absolute; left: 0; top: 96px; display: flex; align-items: center; gap: 22px; }
+  .logo img { width: 96px; height: 96px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,.35); }
+  .wordmark { font-family: "Fraunces", Georgia, serif; font-variation-settings: "opsz" 144; font-weight: 600; font-size: 76px; letter-spacing: -.025em; line-height: 1; white-space: nowrap; }
+  .wordmark em { font-style: italic; font-weight: 500; color: #ffc27a; }
+  h1 { position: absolute; left: 0; top: 236px; font-family: "Fraunces", Georgia, serif; font-variation-settings: "opsz" 144; font-weight: 600; font-size: 60px; line-height: 1.1; letter-spacing: -.015em; margin: 0; max-width: 1000px; text-shadow: 0 2px 12px rgba(0,0,0,.25); }
+  p { position: absolute; left: 0; top: 386px; font-size: 27px; line-height: 1.4; margin: 0; max-width: 980px; color: rgba(232,237,242,.92); }
+  .url { position: absolute; left: 0; bottom: 60px; font-weight: 600; font-size: 28px; color: #ffc27a; }
+  .towns { position: absolute; right: 0; bottom: 60px; font-size: 22px; color: rgba(232,237,242,.85); text-align: right; }
+</style>
+</head>
+<body>
+  <div class="sky"></div>
+  <svg class="mtn" viewBox="0 0 1640 250" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 250 L0 160 L150 100 L300 140 L460 60 L600 116 L760 40 L930 120 L1090 82 L1240 132 L1390 96 L1520 146 L1640 120 L1640 250 Z" fill="#12202a" opacity=".95"/>
+    <path d="M0 250 L0 200 L220 170 L410 206 L640 160 L880 208 L1120 176 L1360 210 L1640 180 L1640 250 Z" fill="#0f151c"/>
+  </svg>
+  <div class="haze"></div>
+  <div class="safe">
+    <div class="logo"><img src="../../assets/img/logo-mark.svg" alt=""><div class="wordmark">Helderberg <em>Social</em></div></div>
+    <h1>Your weekend in the Helderberg starts here.</h1>
+    <p>Groups, clubs, markets, wine estates, trails and what's on this weekend. Free, community-run, and anyone can add a listing.</p>
+    <div class="url">helderbergsocial.co.za</div>
+    <div class="towns">Somerset West · Strand · Gordon's Bay · Sir Lowry's Pass</div>
+  </div>
+</body>
+</html>

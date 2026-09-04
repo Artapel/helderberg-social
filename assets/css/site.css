@@ -154,7 +154,11 @@ label { font-weight: 600; font-size: .88rem; display: block; margin-bottom: .3re
 
 /* Filters */
 .filters { display: grid; grid-template-columns: 2fr repeat(3, 1fr); gap: .6rem; margin-bottom: .8rem; }
-@media (max-width: 760px) { .filters { grid-template-columns: 1fr 1fr; } }
+.filters-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 760px) { .filters, .filters-3 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 440px) { .filters, .filters-3 { grid-template-columns: 1fr; } }
+/* Fingers, not cursors: taller small buttons and controls on touch screens. */
+@media (pointer: coarse) { .btn.sm { padding: .55rem .85rem; } .filters select, .filters input { min-height: 42px; } }
 .chips { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1rem; }
 .chip { border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 999px; padding: .35rem .75rem; font-size: .85rem; cursor: pointer; }
 .chip.on { background: var(--brand); color: #fff; border-color: var(--brand); }
@@ -215,8 +219,11 @@ label { font-weight: 600; font-size: .88rem; display: block; margin-bottom: .3re
 
 /* Footer */
 .site-footer { border-top: 1px solid var(--line); padding: 2rem 0 2.5rem; margin-top: 2rem; color: var(--muted); font-size: .88rem; }
-.site-footer .wrap { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 1.5rem; }
-@media (max-width: 700px) { .site-footer .wrap { grid-template-columns: 1fr; } }
+.site-footer .wrap { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 1.5rem; }
+.site-footer .follow a { display: inline-flex; align-items: center; gap: .45rem; }
+.site-footer .follow svg { width: 18px; height: 18px; fill: currentColor; }
+@media (max-width: 900px) { .site-footer .wrap { grid-template-columns: 1fr 1fr; } .site-footer .wrap > :first-child { grid-column: 1 / -1; } }
+@media (max-width: 520px) { .site-footer .wrap { grid-template-columns: 1fr; } }
 .site-footer h4 { font-family: var(--font-body); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text); }
 .site-footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .3rem; }
 .site-footer a { color: var(--muted); }
