@@ -147,7 +147,8 @@ type dashData struct {
 	Uptime, LastDaily, LastWeekly, LastWatch, Enrolled                              string
 	PV                                                                              []dayCount
 	Audit                                                                           []auditRow
-	Maintenance, Announcement                                                       bool
+	Maintenance, Announcement, FBOn                                                 bool
+	FBQueued, FBFailed                                                              int
 }
 
 type auditRow struct{ At, Action, Target, Detail, IP string }
@@ -197,6 +198,9 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
 		Audit:           a.auditRows("1=1", 10),
 		Maintenance:     a.settingBool("maintenance"),
 		Announcement:    a.settingBool("announcement_on"),
+		FBOn:            a.fbEnabled(),
+		FBQueued:        a.count(`SELECT COUNT(*) FROM fb_posts WHERE status='queued'`),
+		FBFailed:        a.count(`SELECT COUNT(*) FROM fb_posts WHERE status='failed'`),
 	}
 	a.renderConsole(w, r, "p_dashboard", "Dashboard", d)
 }

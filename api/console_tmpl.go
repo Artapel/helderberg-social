@@ -166,6 +166,7 @@ const consoleSrc = `
 <div class="cards">
 <a class="card{{if $d.PendingEvents}} hot{{end}}" href="/admin/queue" style="text-decoration:none;color:inherit"><b>{{$d.PendingEvents}}</b><small>events to moderate</small></a>
 <a class="card{{if $d.PendingListings}} hot{{end}}" href="/admin/queue" style="text-decoration:none;color:inherit"><b>{{$d.PendingListings}}</b><small>listings to moderate</small></a>
+{{if $d.FBOn}}<a class="card{{if $d.FBFailed}} hot{{end}}" href="/admin/facebook" style="text-decoration:none;color:inherit"><b>{{$d.FBQueued}}{{if $d.FBFailed}} <span class="pill no">{{$d.FBFailed}} failed</span>{{end}}</b><small>Facebook posts queued</small></a>{{end}}
 <div class="card"><b>{{$d.Upcoming}}</b><small>upcoming approved events</small></div>
 <div class="card"><b>{{$d.Subs}}</b><small>subscribers <span class="mute">(+{{$d.SubsPending}} unconfirmed)</span></small></div>
 <div class="card"><b>{{$d.PVToday}}</b><small>page views today · {{$d.UniqToday}} visitors</small></div>
