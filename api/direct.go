@@ -196,6 +196,12 @@ func (a *App) mailRecords() []mailRecord {
 	have := txt(domain, "v=spf1")
 	out = append(out, mailRecord{Name: domain, Type: "TXT", Want: spf, Have: have, Why: "SPF: which address may send as this domain",
 		OK: have != "" && (a.cfg.MailIP == "" || strings.Contains(have, a.cfg.MailIP))})
+	if h := a.cfg.MailHelo; h != "" && h != domain && a.cfg.MailIP != "" {
+		// SpamAssassin's SPF_HELO_NONE: the EHLO name should carry its own SPF too.
+		have = txt(h, "v=spf1")
+		out = append(out, mailRecord{Name: h, Type: "TXT", Want: spf, Have: have, Why: "SPF on the HELO name, so the greeting itself passes SPF as well as the sender",
+			OK: have != "" && strings.Contains(have, a.cfg.MailIP)})
+	}
 	if a.dkim != nil {
 		have = txt(a.dkim.recordName(), "v=dkim1")
 		out = append(out, mailRecord{Name: a.dkim.recordName(), Type: "TXT", Want: a.dkim.recordValue(), Have: have, Why: "DKIM: the public key that matches the signature on every message",

@@ -177,6 +177,7 @@ System page in the console resolves each one live and shows *DNS complete* or
 | Record | Value | Why |
 |---|---|---|
 | `TXT @` | `v=spf1 ip4:<HS_MAIL_IP> -all` | Only that address may send as the domain. |
+| `TXT api` | `v=spf1 ip4:<HS_MAIL_IP> -all` | The same, on the EHLO name, so the greeting passes SPF too (SpamAssassin's `SPF_HELO_NONE`). |
 | `TXT hs1._domainkey` | `v=DKIM1; k=rsa; p=<public key>` | The key that matches the signature. Longer than 255 octets, so the script republishes it as quoted 255-octet strings if the registrar rejects the single string. |
 | `TXT _dmarc` | `v=DMARC1; p=quarantine; adkim=s; aspf=s; fo=1` | Receivers junk (not just accept) mail that fails both checks; strict alignment on the `From` domain. No reporting address yet, as the domain does not receive mail. |
 | `MX @` | `0 .` (null MX, RFC 7505), or no MX at all | The domain sends but never receives. HostAfrica rejects `.` as an exchange, so the script deletes the registrar's default MX instead; with no MX, receivers fall back to the A record (GitHub Pages, no port 25) and fail fast rather than pointing replies at a web host on purpose. |
