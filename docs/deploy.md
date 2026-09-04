@@ -31,6 +31,13 @@ DNS records in the zone (from GitHub's docs, 2026-09-02):
 GitHub also recommends verifying the domain in account Settings → Pages → Add a domain (a TXT
 record) before or soon after adding it, to prevent takeover if the CNAME is ever removed.
 
+## Changing CSS or JavaScript
+
+GitHub Pages caches assets for ten minutes and browsers keep them longer, so
+run `python3 scripts/bump-assets.py` before committing any change under
+`assets/` or `data/`. It rewrites every `?v=` stamp in the pages; without it
+returning visitors keep the old file next to the new HTML.
+
 ## The API (events, email updates, submissions)
 
 The static site is the whole public surface, but the forms, the email digests and the
