@@ -27,7 +27,7 @@ func testApp(t *testing.T) (*App, string) {
 		Secret: []byte("0123456789abcdef0123456789abcdef-test"), AdminEmail: "admin@example.org",
 		MailFrom: "Helderberg Social <hello@helderbergsocial.co.za>", DevMailDir: mailDir, TZ: loc,
 		DigestHour: 6, WeeklyDay: time.Thursday, WatchInterval: time.Hour, TrustProxy: true,
-		DKIMSelector: "hs1", MailHelo: "api.helderbergsocial.co.za", MailIP: "41.221.5.36",
+		DKIMSelector: "hs1", MailHelo: "mail.helderbergsocial.co.za", MailIP: "41.221.5.36",
 	}
 	a, err := newApp(cfg)
 	if err != nil {

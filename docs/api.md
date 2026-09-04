@@ -177,16 +177,19 @@ System page in the console resolves each one live and shows *DNS complete* or
 | Record | Value | Why |
 |---|---|---|
 | `TXT @` | `v=spf1 ip4:<HS_MAIL_IP> -all` | Only that address may send as the domain. |
-| `TXT api` | `v=spf1 ip4:<HS_MAIL_IP> -all` | The same, on the EHLO name, so the greeting passes SPF too (SpamAssassin's `SPF_HELO_NONE`). |
+| `A mail` | `<HS_MAIL_IP>` | The sending host's own name (`HS_MAIL_HELO`), replacing the registrar's CNAME to the apex, so the ISP's PTR on that address is forward-confirmed. |
+| `TXT mail` | `v=spf1 ip4:<HS_MAIL_IP> -all` | The same SPF on the EHLO name, so the greeting passes SPF too (SpamAssassin's `SPF_HELO_NONE`). |
 | `TXT hs1._domainkey` | `v=DKIM1; k=rsa; p=<public key>` | The key that matches the signature. Longer than 255 octets, so the script republishes it as quoted 255-octet strings if the registrar rejects the single string. |
 | `TXT _dmarc` | `v=DMARC1; p=quarantine; adkim=s; aspf=s; fo=1` | Receivers junk (not just accept) mail that fails both checks; strict alignment on the `From` domain. No reporting address yet, as the domain does not receive mail. |
 | `MX @` | `0 .` (null MX, RFC 7505), or no MX at all | The domain sends but never receives. HostAfrica rejects `.` as an exchange, so the script deletes the registrar's default MX instead; with no MX, receivers fall back to the A record (GitHub Pages, no port 25) and fail fast rather than pointing replies at a web host on purpose. |
 
 One thing the zone cannot fix: **reverse DNS on `HS_MAIL_IP`**. Gmail and
 Outlook refuse port-25 connections from an address without a PTR. The ISP that
-owns the address sets it; ask for `api.helderbergsocial.co.za` (or any name that
-resolves back to the address) and make `HS_MAIL_HELO` match. Until then, expect
-Gmail recipients to be refused with a 550 and the mail log to say so.
+owns the address sets it; ask for `mail.helderbergsocial.co.za`, which is the
+`HS_MAIL_HELO` name and resolves to the address, so HELO, forward and reverse
+all agree (requested 2026-09-04). Until then, expect Gmail recipients to be
+refused with a 550 and the mail log to say so. The System page shows the PTR
+check with the rest.
 
 Checking a real send: address a subscription at the domain
 [mail-tester.com](https://www.mail-tester.com) shows and confirm it; the score

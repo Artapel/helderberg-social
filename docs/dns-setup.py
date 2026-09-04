@@ -7,13 +7,16 @@ Usage (token from the environment only, never in the file or argv):
     HA_TOKEN='<api token>' python docs/dns-setup.py --mail     # also publish SPF/DKIM/DMARC/null MX
 
 Idempotent: adds only records that are missing, deletes only the registrar's parking A
-record, repoints www. Leaves SOA, NS, mail and ftp records alone. With --mail it fetches
+record, repoints www. Leaves SOA, NS and ftp records alone. With --mail it fetches
 the records the API wants published from https://api.helderbergsocial.co.za/api/mail-dns
 (or --mail-json <file> for a saved copy), adds the SPF, DKIM and DMARC TXT records and
 replaces the MX with a null MX ("0 .", RFC 7505: the domain sends but never receives).
 HostAfrica rejects "." as an MX exchange ("Supplied exchange for MX record is invalid",
 seen 2026-09-04), in which case the MX is deleted instead: no MX means receivers fall back
 to the A record, which is the web host and does not listen on 25, so the effect is the same.
+--mail also turns the registrar's "mail" CNAME into an A record for the sending address, so
+the PTR the ISP sets (mail.helderbergsocial.co.za -> 41.221.5.36) is forward-confirmed and
+matches the API's EHLO name.
 
 API shapes from https://api.hostafrica.com/docs/ (embedded OpenAPI, read 2026-09-03):
     POST /dns/list-zones                            -> data.zones[{domain_id, zone_id, domain_name}]
@@ -28,6 +31,8 @@ DOMAIN = "helderbergsocial.co.za"
 GH_USER = "artapel"
 API_HOST = "api"            # api.helderbergsocial.co.za -> the reverse proxy in front of the API container
 API_IP = "41.221.5.39"
+MAIL_HOST = "mail"          # mail.helderbergsocial.co.za -> the address mail leaves from (its PTR names this)
+MAIL_IP = "41.221.5.36"
 API = "https://api.hostafrica.com"
 TTL = 14400
 # From docs.github.com "Managing a custom domain for your GitHub Pages site", 2026-09-02.
@@ -133,6 +138,16 @@ else:
 
 if MAIL:
     print("\nmail records:")
+    # The sending host's own name: A record, replacing the registrar's CNAME to the apex.
+    mailrecs = [r for r in records if r["name"] == MAIL_HOST and r["type"] in ("A", "CNAME")]
+    if any(r["type"] == "A" and r["content"] == MAIL_IP for r in mailrecs):
+        print(f"keep   A     {MAIL_HOST} -> {MAIL_IP}")
+    else:
+        for r in mailrecs:
+            print(f"delete {r['type']:5} {MAIL_HOST} -> {r['content']}")
+            mutate("/dns/delete-record", r, fatal=False)
+        print(f"add    A     {MAIL_HOST} -> {MAIL_IP}")
+        mutate("/dns/add-record", {"name": MAIL_HOST, "type": "A", "content": MAIL_IP, "ttl": TTL}, fatal=False)
     wanted = mail_records()
     # HostAfrica shows the zone apex as "@" and sub-names relative to the zone.
     def rel(name):
