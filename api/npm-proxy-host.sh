@@ -6,7 +6,7 @@
 #
 # Idempotent: re-running finds the existing host/cert and only fixes what is
 # missing. Run ON the Docker host, as the user that runs NPM, with:
-#   NPM_USER=<admin email> NPM_PW=<password> NPM_EMAIL=<letsencrypt contact> bash api/npm-proxy-host.sh
+#   NPM_USER=<admin email> NPM_PW=<password> bash api/npm-proxy-host.sh
 # The password is read from the environment only; it is never written to disk
 # or passed as an argument.
 set -euo pipefail
@@ -18,7 +18,6 @@ NPM_URL="${NPM_URL:-http://127.0.0.1:81}"
 
 : "${NPM_USER:?set NPM_USER (NPM admin login email)}"
 : "${NPM_PW:?set NPM_PW (NPM admin password) in the environment}"
-: "${NPM_EMAIL:?set NPM_EMAIL (LetsEncrypt contact address)}"
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 
 # --- token (password goes over the local loopback only) ---------------------
@@ -49,9 +48,11 @@ fi
 CERT_ID=$(api "$NPM_URL/api/nginx/certificates" | jq -r --arg h "$HOST" '.[] | select(.provider=="letsencrypt" and (.domain_names | index($h))) | .id' | head -n1)
 if [ -z "$CERT_ID" ]; then
   echo "requesting Let's Encrypt certificate for $HOST (HTTP-01; can take a minute)"
-  CERT_ID=$(jq -n --arg h "$HOST" --arg e "$NPM_EMAIL" '{
+  # NPM 2.14 rejects letsencrypt_email/letsencrypt_agree in meta (additionalProperties: false);
+  # the contact address comes from the NPM account instead.
+  CERT_ID=$(jq -n --arg h "$HOST" '{
       domain_names: [$h], provider: "letsencrypt",
-      meta: { letsencrypt_email: $e, letsencrypt_agree: true, dns_challenge: false } }' \
+      meta: { dns_challenge: false, key_type: "ecdsa" } }' \
     | curl -sS --fail --max-time 300 "${auth[@]}" -d @- "$NPM_URL/api/nginx/certificates" | jq -r .id)
   echo "  certificate id $CERT_ID"
 else
