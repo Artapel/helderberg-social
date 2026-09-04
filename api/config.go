@@ -14,6 +14,8 @@ import (
 // Config is read from the environment once at start-up. Secrets never come
 // from argv or files inside the image; they arrive through the compose env
 // file, which lives only on the host.
+var waVersionRe = regexp.MustCompile(`^v[0-9]+\.[0-9]+$`)
+var waTemplateRe = regexp.MustCompile(`^[a-z0-9_]{1,64}$`)
 var dkimSelectorRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?$`)
 
 type Config struct {
@@ -38,6 +40,11 @@ type Config struct {
 	WatchInterval time.Duration
 	TrustProxy    bool
 	TOTPReset     bool // HS_TOTP_RESET=1: break-glass, wipes the authenticator once at start-up
+	AdminPhone    string
+	// WhatsApp Business Platform (Cloud API). All four of phone id, token, app
+	// secret and verify token are needed; with none set WhatsApp is simply off.
+	WAPhoneID, WAWABAID, WAToken, WAAppSecret, WAVerifyToken string
+	WAVersion, WALang, WATemplateConfirm, WATemplateDigest   string
 }
 
 func env(key, def string) string {
@@ -64,6 +71,11 @@ func loadConfig() (*Config, error) {
 		DKIMSelector: env("HS_DKIM_SELECTOR", "hs1"),
 		TrustProxy:   env("HS_TRUST_PROXY", "true") == "true",
 		TOTPReset:    env("HS_TOTP_RESET", "") == "1",
+		AdminPhone:   env("HS_ADMIN_PHONE", ""),
+		WAPhoneID:    env("HS_WA_PHONE_ID", ""), WAWABAID: env("HS_WA_WABA_ID", ""), WAToken: env("HS_WA_TOKEN", ""),
+		WAAppSecret: env("HS_WA_APP_SECRET", ""), WAVerifyToken: env("HS_WA_VERIFY_TOKEN", ""),
+		WAVersion: env("HS_WA_API_VERSION", "v22.0"), WALang: env("HS_WA_LANG", "en"),
+		WATemplateConfirm: env("HS_WA_TEMPLATE_CONFIRM", "hs_confirm"), WATemplateDigest: env("HS_WA_TEMPLATE_DIGEST", "hs_digest"),
 	}
 	secret := env("HS_SECRET", "")
 	if len(secret) < 32 {
@@ -87,6 +99,21 @@ func loadConfig() (*Config, error) {
 	}
 	if c.MailIP != "" && net.ParseIP(c.MailIP) == nil {
 		return nil, fmt.Errorf("HS_MAIL_IP must be an IP address")
+	}
+	if c.WAPhoneID != "" || c.WAToken != "" || c.WAAppSecret != "" || c.WAVerifyToken != "" {
+		if c.WAPhoneID == "" || c.WAToken == "" || c.WAAppSecret == "" || len(c.WAVerifyToken) < 16 {
+			return nil, fmt.Errorf("WhatsApp needs HS_WA_PHONE_ID, HS_WA_TOKEN, HS_WA_APP_SECRET and HS_WA_VERIFY_TOKEN (16+ chars) together; leave all four empty to disable")
+		}
+		if !waVersionRe.MatchString(c.WAVersion) || !waTemplateRe.MatchString(c.WATemplateConfirm) || !waTemplateRe.MatchString(c.WATemplateDigest) {
+			return nil, fmt.Errorf("HS_WA_API_VERSION must look like v22.0 and template names must be lowercase letters, digits and underscores")
+		}
+	}
+	if c.AdminPhone != "" {
+		p, ok := normPhone(c.AdminPhone)
+		if !ok {
+			return nil, fmt.Errorf("HS_ADMIN_PHONE is not a phone number")
+		}
+		c.AdminPhone = p
 	}
 	if c.DKIMSelector != "" && !dkimSelectorRe.MatchString(c.DKIMSelector) {
 		return nil, fmt.Errorf("HS_DKIM_SELECTOR: letters, digits and hyphens only")

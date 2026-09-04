@@ -42,6 +42,9 @@ down: events fall back to `data/data.js` and the forms show a copy-out block.
 The site is managed from the API's own console at `https://api.helderbergsocial.co.za/admin`
 (emailed link + Google Authenticator; runbook in `docs/api.md`, *The admin console*).
 
+WhatsApp updates are optional and automatic once Meta's side is set up (`docs/whatsapp.md`:
+business verification, a dedicated number, two approved templates, four `.env` values).
+
 Mail leaves the container directly (its own DKIM-signed SMTP sender, no mail account).
 The zone carries SPF, DKIM, DMARC and a null MX for it, published by
 `docs/dns-setup.py --mail`; the console's System page checks them live. The domain does

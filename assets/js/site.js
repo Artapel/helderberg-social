@@ -179,7 +179,7 @@
         '<p>' + HS.esc(D.site.tagline || "") + '</p><p class="small">Listings are community-submitted. Anything marked <em>Unverified</em> has not yet been checked by us: confirm times and prices with the organiser before you go.</p>' +
         '<p class="small">© ' + new Date().getFullYear() + ' ' + HS.esc(D.site.name || "") + ' · ' + HS.esc(D.site.region || "") + '</p></div>' +
         '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
-        '<div><h4>Get involved</h4><ul><li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li></ul></div>' +
+        '<div><h4>Get involved</h4><ul><li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email or WhatsApp updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li></ul></div>' +
         HS.followBlock() + '</div>';
     }
     HS.updateCounts();

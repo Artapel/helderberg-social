@@ -66,7 +66,7 @@ func (a *App) runDigest(freq string, preview bool) (int, error) {
 	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, a.cfg.TZ)
 	var subs []Subscriber
 	if preview {
-		subs = []Subscriber{{ID: 0, Email: a.cfg.AdminEmail, Frequency: freq, Horizon: 7}}
+		subs = []Subscriber{{ID: 0, Email: a.cfg.AdminEmail, Channel: "email", Frequency: freq, Horizon: 7}}
 	} else {
 		var err error
 		subs, err = a.subscribers(`confirmed_at IS NOT NULL AND frequency = ?`, freq)
@@ -82,6 +82,18 @@ func (a *App) runDigest(freq string, preview bool) (int, error) {
 	for _, s := range subs {
 		evs := filterEvents(all, today, s)
 		if len(evs) == 0 {
+			continue
+		}
+		if s.Channel == "whatsapp" {
+			if !a.waEnabled() {
+				continue // configured off since they signed up; they keep their place
+			}
+			if err := a.waDigest(s, evs, freq); err != nil {
+				continue
+			}
+			sent++
+			_, _ = a.db.Exec(`UPDATE subscribers SET last_sent_at = ? WHERE id = ?`, now(), s.ID)
+			time.Sleep(200 * time.Millisecond)
 			continue
 		}
 		unsub := a.cfg.APIURL + "/api/unsubscribe?t=" + a.sign("unsub", fmt.Sprint(s.ID), 365*24*time.Hour)

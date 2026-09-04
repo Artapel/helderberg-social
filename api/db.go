@@ -15,13 +15,15 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 2
+const schemaVersion = 3
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
 	`CREATE TABLE IF NOT EXISTS subscribers (
 		id INTEGER PRIMARY KEY,
-		email TEXT NOT NULL UNIQUE,
+		email TEXT UNIQUE,
+		phone TEXT UNIQUE,
+		channel TEXT NOT NULL DEFAULT 'email' CHECK (channel IN ('email','whatsapp')),
 		frequency TEXT NOT NULL CHECK (frequency IN ('daily','weekly')),
 		horizon INTEGER NOT NULL CHECK (horizon IN (7,14,30)),
 		towns TEXT NOT NULL DEFAULT '[]',
@@ -29,8 +31,10 @@ var schema = []string{
 		created_at TEXT NOT NULL,
 		confirmed_at TEXT,
 		last_sent_at TEXT,
-		ip_hash TEXT NOT NULL DEFAULT ''
+		ip_hash TEXT NOT NULL DEFAULT '',
+		CHECK ((channel = 'email' AND email IS NOT NULL) OR (channel = 'whatsapp' AND phone IS NOT NULL))
 	)`,
+	`CREATE TABLE IF NOT EXISTS wa_seen (id TEXT PRIMARY KEY, seen_at TEXT NOT NULL)`,
 	`CREATE TABLE IF NOT EXISTS events (
 		id TEXT PRIMARY KEY,
 		title TEXT NOT NULL,
@@ -115,10 +119,67 @@ func openDB(dir string) (*sql.DB, error) {
 			return nil, fmt.Errorf("schema: %w\n%s", err, stmt)
 		}
 	}
+	if err := migrate(db); err != nil {
+		return nil, err
+	}
 	if _, err := db.Exec(`INSERT OR REPLACE INTO meta(key, value) VALUES('schema_version', ?)`, fmt.Sprint(schemaVersion)); err != nil {
 		return nil, err
 	}
 	return db, nil
+}
+
+// migrate brings a database written by an older build up to the current
+// schema. Each step checks the actual table shape, not just the stored
+// version, so an interrupted upgrade is safe to rerun.
+func migrate(db *sql.DB) error {
+	// v3: subscribers gain a channel and a phone; email becomes optional.
+	// SQLite cannot relax NOT NULL in place, so rebuild the table.
+	if !hasColumn(db, "subscribers", "phone") {
+		_, err := db.Exec(`BEGIN;
+			CREATE TABLE subscribers_v3 (
+				id INTEGER PRIMARY KEY,
+				email TEXT UNIQUE,
+				phone TEXT UNIQUE,
+				channel TEXT NOT NULL DEFAULT 'email' CHECK (channel IN ('email','whatsapp')),
+				frequency TEXT NOT NULL CHECK (frequency IN ('daily','weekly')),
+				horizon INTEGER NOT NULL CHECK (horizon IN (7,14,30)),
+				towns TEXT NOT NULL DEFAULT '[]',
+				categories TEXT NOT NULL DEFAULT '[]',
+				created_at TEXT NOT NULL,
+				confirmed_at TEXT,
+				last_sent_at TEXT,
+				ip_hash TEXT NOT NULL DEFAULT '',
+				CHECK ((channel = 'email' AND email IS NOT NULL) OR (channel = 'whatsapp' AND phone IS NOT NULL))
+			);
+			INSERT INTO subscribers_v3(id, email, frequency, horizon, towns, categories, created_at, confirmed_at, last_sent_at, ip_hash)
+				SELECT id, email, frequency, horizon, towns, categories, created_at, confirmed_at, last_sent_at, ip_hash FROM subscribers;
+			DROP TABLE subscribers;
+			ALTER TABLE subscribers_v3 RENAME TO subscribers;
+			COMMIT;`)
+		if err != nil {
+			_, _ = db.Exec(`ROLLBACK`)
+			return fmt.Errorf("migrate subscribers to v3: %w", err)
+		}
+	}
+	return nil
+}
+
+func hasColumn(db *sql.DB, table, col string) bool {
+	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
+	if err != nil {
+		return false
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, typ string
+		var notnull, pk int
+		var dflt any
+		if rows.Scan(&cid, &name, &typ, &notnull, &dflt, &pk) == nil && name == col {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) metaGet(key string) string {
@@ -212,7 +273,9 @@ func (a *App) uniqueEventID(base string) string {
 
 type Subscriber struct {
 	ID         int64
-	Email      string
+	Email      string // empty for WhatsApp subscriptions
+	Phone      string // E.164 digits, empty for email subscriptions
+	Channel    string // "email" or "whatsapp"
 	Frequency  string
 	Horizon    int
 	Towns      []string
@@ -221,7 +284,7 @@ type Subscriber struct {
 }
 
 func (a *App) subscribers(where string, args ...any) ([]Subscriber, error) {
-	rows, err := a.db.Query(`SELECT id, email, frequency, horizon, towns, categories, confirmed_at IS NOT NULL FROM subscribers WHERE `+where, args...)
+	rows, err := a.db.Query(`SELECT id, COALESCE(email,''), COALESCE(phone,''), channel, frequency, horizon, towns, categories, confirmed_at IS NOT NULL FROM subscribers WHERE `+where, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +293,7 @@ func (a *App) subscribers(where string, args ...any) ([]Subscriber, error) {
 	for rows.Next() {
 		var s Subscriber
 		var t, c string
-		if err := rows.Scan(&s.ID, &s.Email, &s.Frequency, &s.Horizon, &t, &c, &s.Confirmed); err != nil {
+		if err := rows.Scan(&s.ID, &s.Email, &s.Phone, &s.Channel, &s.Frequency, &s.Horizon, &t, &c, &s.Confirmed); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal([]byte(t), &s.Towns)
@@ -282,6 +345,7 @@ func (a *App) housekeeping() {
 		args []any
 	}{
 		{`DELETE FROM tokens_used WHERE used_at < ?`, []any{cut(45 * 24 * time.Hour)}},
+		{`DELETE FROM wa_seen WHERE seen_at < ?`, []any{cut(7 * 24 * time.Hour)}},
 		{`DELETE FROM mail_log WHERE sent_at < ?`, []any{cut(30 * 24 * time.Hour)}},
 		{`DELETE FROM subscribers WHERE confirmed_at IS NULL AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},
 		{`DELETE FROM events WHERE status = 'pending_email' AND created_at < ?`, []any{cut(3 * 24 * time.Hour)}},

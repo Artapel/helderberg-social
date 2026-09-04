@@ -25,6 +25,7 @@ type App struct {
 	db       *sql.DB
 	mailer   Mailer
 	dkim     *dkimSigner
+	wa       *waClient
 	tmpl     *template.Template
 	limGet   *limiter
 	limPost  *limiter
@@ -65,6 +66,7 @@ func newApp(cfg *Config) (*App, error) {
 			a.logf("dkim: generated a new 2048-bit key; publish TXT %s -> %s", signer.recordName(), signer.recordValue())
 		}
 	}
+	a.wa = newWAClient(cfg, a.logf)
 	switch {
 	case cfg.DevMailDir != "":
 		a.mailer = &fileMailer{dir: cfg.DevMailDir, from: cfg.MailFrom, dkim: a.dkim}

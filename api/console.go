@@ -413,6 +413,7 @@ func (a *App) listingsPage(w http.ResponseWriter, r *http.Request) {
 /* ---------- subscribers ---------- */
 
 type subRow struct {
+	PhonePretty string
 	Subscriber
 	CreatedAt, ConfirmedAt, LastSent string
 }
@@ -426,7 +427,7 @@ type subsData struct {
 }
 
 func (a *App) subscriberRows(where string, args ...any) []subRow {
-	rows, err := a.db.Query(`SELECT id, email, frequency, horizon, towns, categories, confirmed_at IS NOT NULL, created_at, COALESCE(confirmed_at,''), COALESCE(last_sent_at,'') FROM subscribers WHERE `+where, args...)
+	rows, err := a.db.Query(`SELECT id, COALESCE(email,''), COALESCE(phone,''), channel, frequency, horizon, towns, categories, confirmed_at IS NOT NULL, created_at, COALESCE(confirmed_at,''), COALESCE(last_sent_at,'') FROM subscribers WHERE `+where, args...)
 	if err != nil {
 		return nil
 	}
@@ -435,7 +436,10 @@ func (a *App) subscriberRows(where string, args ...any) []subRow {
 	for rows.Next() {
 		var s subRow
 		var t, c string
-		if rows.Scan(&s.ID, &s.Email, &s.Frequency, &s.Horizon, &t, &c, &s.Confirmed, &s.CreatedAt, &s.ConfirmedAt, &s.LastSent) == nil {
+		if rows.Scan(&s.ID, &s.Email, &s.Phone, &s.Channel, &s.Frequency, &s.Horizon, &t, &c, &s.Confirmed, &s.CreatedAt, &s.ConfirmedAt, &s.LastSent) == nil {
+			if s.Phone != "" {
+				s.PhonePretty = prettyPhone(s.Phone)
+			}
 			_ = json.Unmarshal([]byte(t), &s.Towns)
 			_ = json.Unmarshal([]byte(c), &s.Categories)
 			out = append(out, s)
@@ -455,10 +459,13 @@ func (a *App) subscribersPage(w http.ResponseWriter, r *http.Request) {
 	case "daily", "weekly":
 		where = "frequency = ?"
 		args = append(args, d.Filter)
+	case "email", "whatsapp":
+		where = "channel = ?"
+		args = append(args, d.Filter)
 	}
 	if d.Q != "" {
-		where += " AND email LIKE ?"
-		args = append(args, "%"+d.Q+"%")
+		where += " AND (COALESCE(email,'') LIKE ? OR COALESCE(phone,'') LIKE ?)"
+		args = append(args, "%"+d.Q+"%", "%"+strings.TrimPrefix(d.Q, "+")+"%")
 	}
 	d.Total = a.count(`SELECT COUNT(*) FROM subscribers WHERE `+where, args...)
 	var off int
@@ -494,9 +501,9 @@ func (a *App) exportSubscribers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="subscribers-`+a.localDay(time.Now())+`.csv"`)
 	cw := csv.NewWriter(w)
-	_ = cw.Write([]string{"email", "frequency", "horizon", "towns", "categories", "confirmed_at", "created_at", "last_sent_at"})
+	_ = cw.Write([]string{"email", "phone", "channel", "frequency", "horizon", "towns", "categories", "confirmed_at", "created_at", "last_sent_at"})
 	for _, s := range a.subscriberRows(`1=1 ORDER BY id`) {
-		_ = cw.Write([]string{csvSafe(s.Email), s.Frequency, fmt.Sprint(s.Horizon), strings.Join(s.Towns, " "), strings.Join(s.Categories, " "), s.ConfirmedAt, s.CreatedAt, s.LastSent})
+		_ = cw.Write([]string{csvSafe(s.Email), csvSafe(s.PhonePretty), s.Channel, s.Frequency, fmt.Sprint(s.Horizon), strings.Join(s.Towns, " "), strings.Join(s.Categories, " "), s.ConfirmedAt, s.CreatedAt, s.LastSent})
 	}
 	cw.Flush()
 }
@@ -845,6 +852,10 @@ type systemData struct {
 	MailMode, MailFrom, MailHelo                                  string
 	MailRecords                                                   []mailRecord
 	MailOK                                                        bool
+	WAOn                                                          bool
+	WAPhoneID, WAVersion, WALang, WAWebhook, WATemplateNote       string
+	WATemplates                                                   map[string]string
+	WAAdminPhone                                                  string
 }
 
 var backupNameRe = regexp.MustCompile(`^helderberg-\d{8}-\d{6}\.sqlite$`)
@@ -861,6 +872,23 @@ func (a *App) systemPage(w http.ResponseWriter, r *http.Request) {
 		d.DBSize = fmtBytes(st.Size())
 	}
 	d.MailMode, d.MailFrom, d.MailHelo = mailMode(a.cfg), a.cfg.MailFrom, a.cfg.MailHelo
+	d.WAOn = a.waEnabled()
+	if d.WAOn {
+		d.WAPhoneID, d.WAVersion, d.WALang = a.wa.phoneID, a.wa.version, a.wa.lang
+		d.WAWebhook = a.cfg.APIURL + "/api/wa/webhook"
+		d.WAAdminPhone = a.cfg.AdminPhone
+		if st, err := a.wa.templateStatus(); err != nil {
+			d.WATemplateNote = "template status not checked: " + err.Error()
+			d.WATemplates = map[string]string{a.wa.tConfirm: "?", a.wa.tDigest: "?"}
+		} else {
+			d.WATemplates = map[string]string{a.wa.tConfirm: st[a.wa.tConfirm], a.wa.tDigest: st[a.wa.tDigest]}
+			for k, v := range d.WATemplates {
+				if v == "" {
+					d.WATemplates[k] = "MISSING: create it in Meta Business Suite"
+				}
+			}
+		}
+	}
 	d.MailRecords = a.mailRecords()
 	d.MailOK = true
 	for _, m := range d.MailRecords {
@@ -1019,7 +1047,14 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 		a.audit(r, "subscriber.confirm", id, "")
 	case "sub-resend":
 		subs := a.subscriberRows(`id = ?`, id)
-		if len(subs) == 1 {
+		if len(subs) == 1 && subs[0].Channel == "whatsapp" {
+			if a.waEnabled() {
+				err = a.waConfirm(subs[0].Phone, subs[0].Frequency, subs[0].Horizon)
+				msg = "Confirmation message re-sent on WhatsApp."
+			} else {
+				err = fmt.Errorf("WhatsApp is not configured")
+			}
+		} else if len(subs) == 1 {
 			link := a.cfg.APIURL + "/api/confirm?t=" + a.sign("confirm", fmt.Sprint(subs[0].ID), 72*time.Hour)
 			err = a.send(Message{To: subs[0].Email, Kind: "confirm", Subject: "Confirm your Helderberg Social updates",
 				Text: a.textConfirm(subs[0].Frequency, subs[0].Horizon, link), HTML: a.htmlConfirm(subs[0].Frequency, subs[0].Horizon, link)})
@@ -1034,10 +1069,14 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 		a.audit(r, "subscriber.delete", id, "")
 		ret = "/admin/subscribers"
 	case "sub-block":
-		var email string
-		_ = a.db.QueryRow(`SELECT email FROM subscribers WHERE id = ?`, id).Scan(&email)
+		var email, phone string
+		_ = a.db.QueryRow(`SELECT COALESCE(email,''), COALESCE(phone,'') FROM subscribers WHERE id = ?`, id).Scan(&email, &phone)
 		if email != "" {
 			err = a.addBlock("email", emailHash(email), "blocked from subscriber "+id)
+		} else if phone != "" {
+			err = a.addBlock("email", emailHash("tel:"+phone), "blocked phone from subscriber "+id)
+		}
+		if email != "" || phone != "" {
 			_, _ = a.db.Exec(`DELETE FROM subscribers WHERE id = ?`, id)
 		}
 		msg = "Address blocked and removed."
@@ -1056,14 +1095,29 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 		a.audit(r, "subscriber.save", id, "")
 	case "sub-add":
 		email := normEmail(f.Get("email"))
-		if !validEmail(email) {
-			err = fmt.Errorf("that email address does not look right")
+		if phone, ok := normPhone(f.Get("email")); ok && !strings.Contains(email, "@") {
+			// A phone number in the box adds a WhatsApp subscriber instead.
+			_, err = a.db.Exec(`INSERT INTO subscribers(phone, channel, frequency, horizon, towns, categories, created_at, confirmed_at, ip_hash) VALUES(?,'whatsapp',?,7,'[]','[]',?,?,'admin')`, phone, "weekly", now(), now())
+			msg = "WhatsApp subscriber added as confirmed (weekly, 7 days). They can reply STOP to any digest."
+			email = "tel:" + phone
+		} else if !validEmail(email) {
+			err = fmt.Errorf("that email address or phone number does not look right")
 		} else {
 			_, err = a.db.Exec(`INSERT INTO subscribers(email, frequency, horizon, towns, categories, created_at, confirmed_at, ip_hash) VALUES(?,?,7,'[]','[]',?,?,'admin')`, email, "weekly", now(), now())
 			msg = "Subscriber added as confirmed (weekly, 7 days). They can unsubscribe from any digest."
 		}
 		a.audit(r, "subscriber.add", emailHash(email), "")
 	// digests
+	case "test-whatsapp":
+		if !a.waEnabled() {
+			err = fmt.Errorf("WhatsApp is not configured")
+		} else if a.cfg.AdminPhone == "" {
+			err = fmt.Errorf("set HS_ADMIN_PHONE to receive the test")
+		} else {
+			err = a.waConfirm(a.cfg.AdminPhone, "weekly", 7)
+			msg = "Test sent: the confirm template went to " + prettyPhone(a.cfg.AdminPhone) + ". Tapping Confirm there does nothing unless that number has a pending subscription."
+		}
+		a.audit(r, "whatsapp.test", "", "")
 	case "digest-preview":
 		freq := f.Get("freq")
 		if freq != "daily" && freq != "weekly" {

@@ -28,6 +28,9 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("POST /api/subscribe", a.subscribe)
 	mux.HandleFunc("GET /api/confirm", a.confirm)
 	mux.HandleFunc("GET /api/unsubscribe", a.unsubscribe)
+	mux.HandleFunc("GET /api/digest", a.digestView)
+	mux.HandleFunc("GET /api/wa/webhook", a.waWebhookVerify)
+	mux.HandleFunc("POST /api/wa/webhook", a.waWebhook)
 	mux.HandleFunc("POST /api/unsubscribe", a.unsubscribe)
 	mux.HandleFunc("POST /api/submit/event", a.submitEvent)
 	mux.HandleFunc("POST /api/submit/listing", a.submitListing)
@@ -204,7 +207,7 @@ func (a *App) health(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, 503, "database unavailable")
 		return
 	}
-	a.json(w, 200, map[string]any{"ok": true, "version": a.version, "time": now()})
+	a.json(w, 200, map[string]any{"ok": true, "version": a.version, "time": now(), "whatsapp": a.waEnabled()})
 }
 
 func (a *App) getEvents(w http.ResponseWriter, r *http.Request) {
@@ -234,6 +237,8 @@ func (a *App) getEvents(w http.ResponseWriter, r *http.Request) {
 
 type subscribeReq struct {
 	Email      string   `json:"email"`
+	Phone      string   `json:"phone"`
+	Channel    string   `json:"channel"` // "email" (default) or "whatsapp"
 	Frequency  string   `json:"frequency"`
 	Horizon    int      `json:"horizon"`
 	Towns      []string `json:"towns"`
@@ -255,14 +260,39 @@ func (a *App) subscribe(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, 503, "New subscriptions are paused for the moment. Please try again later.")
 		return
 	}
-	email := normEmail(q.Email)
-	if !validEmail(email) {
-		a.fail(w, 400, "That email address does not look right.")
-		return
+	channel := "email"
+	if q.Channel == "whatsapp" {
+		if !a.waEnabled() {
+			a.fail(w, 400, "WhatsApp updates are not available at the moment. Choose email instead.")
+			return
+		}
+		channel = "whatsapp"
 	}
-	if a.isBlocked("email", emailHash(email)) {
-		a.ok(w, "Check your inbox for a confirmation email.")
-		return
+	email, phone := "", ""
+	if channel == "email" {
+		email = normEmail(q.Email)
+		if !validEmail(email) {
+			a.fail(w, 400, "That email address does not look right.")
+			return
+		}
+		if a.isBlocked("email", emailHash(email)) {
+			a.ok(w, "Check your inbox for a confirmation email.")
+			return
+		}
+	} else {
+		var ok bool
+		if phone, ok = normPhone(q.Phone); !ok {
+			a.fail(w, 400, "That phone number does not look right. Use the number your WhatsApp is on, e.g. 082 123 4567.")
+			return
+		}
+		if a.isBlocked("email", emailHash("tel:"+phone)) {
+			a.ok(w, "Check WhatsApp for a confirmation message.")
+			return
+		}
+	}
+	done := "Check your inbox for a confirmation email."
+	if channel == "whatsapp" {
+		done = "Check WhatsApp for a confirmation message."
 	}
 	if q.Frequency != "daily" && q.Frequency != "weekly" {
 		a.fail(w, 400, "Choose daily or weekly.")
@@ -280,7 +310,13 @@ func (a *App) subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	ipHash := ipTag(ipOf(r))
 
-	subs, err := a.subscribers(`email = ?`, email)
+	var subs []Subscriber
+	var err error
+	if channel == "email" {
+		subs, err = a.subscribers(`email = ?`, email)
+	} else {
+		subs, err = a.subscribers(`phone = ?`, phone)
+	}
 	if err != nil {
 		a.logf("subscribe: %v", err)
 		a.fail(w, 500, "internal error")
@@ -288,9 +324,13 @@ func (a *App) subscribe(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(subs) == 1 && subs[0].Confirmed {
 		// Never let a stranger change someone's preferences: tell the owner.
-		_ = a.send(Message{To: email, Kind: "already", Subject: "You are already subscribed to Helderberg Social updates",
-			Text: a.textAlready(subs[0])})
-		a.ok(w, "Check your inbox for a confirmation email.")
+		// (On WhatsApp there is no template for this, so the owner is simply
+		// not disturbed; the reply to the form is the same either way.)
+		if channel == "email" {
+			_ = a.send(Message{To: email, Kind: "already", Subject: "You are already subscribed to Helderberg Social updates",
+				Text: a.textAlready(subs[0])})
+		}
+		a.ok(w, done)
 		return
 	}
 	var id int64
@@ -300,8 +340,8 @@ func (a *App) subscribe(w http.ResponseWriter, r *http.Request) {
 			q.Frequency, q.Horizon, jsonList(tw), jsonList(ct), now(), ipHash, id)
 	} else {
 		var res interface{ LastInsertId() (int64, error) }
-		res, err = a.db.Exec(`INSERT INTO subscribers(email, frequency, horizon, towns, categories, created_at, ip_hash) VALUES(?,?,?,?,?,?,?)`,
-			email, q.Frequency, q.Horizon, jsonList(tw), jsonList(ct), now(), ipHash)
+		res, err = a.db.Exec(`INSERT INTO subscribers(email, phone, channel, frequency, horizon, towns, categories, created_at, ip_hash) VALUES(?,?,?,?,?,?,?,?,?)`,
+			nullIfEmpty(email), nullIfEmpty(phone), channel, q.Frequency, q.Horizon, jsonList(tw), jsonList(ct), now(), ipHash)
 		if err == nil {
 			id, _ = res.LastInsertId()
 		}
@@ -311,10 +351,21 @@ func (a *App) subscribe(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, 500, "internal error")
 		return
 	}
-	link := a.cfg.APIURL + "/api/confirm?t=" + a.sign("confirm", fmt.Sprint(id), 72*time.Hour)
-	_ = a.send(Message{To: email, Kind: "confirm", Subject: "Confirm your Helderberg Social updates",
-		Text: a.textConfirm(q.Frequency, q.Horizon, link), HTML: a.htmlConfirm(q.Frequency, q.Horizon, link)})
-	a.ok(w, "Check your inbox for a confirmation email.")
+	if channel == "whatsapp" {
+		_ = a.waConfirm(phone, q.Frequency, q.Horizon)
+	} else {
+		link := a.cfg.APIURL + "/api/confirm?t=" + a.sign("confirm", fmt.Sprint(id), 72*time.Hour)
+		_ = a.send(Message{To: email, Kind: "confirm", Subject: "Confirm your Helderberg Social updates",
+			Text: a.textConfirm(q.Frequency, q.Horizon, link), HTML: a.htmlConfirm(q.Frequency, q.Horizon, link)})
+	}
+	a.ok(w, done)
+}
+
+func nullIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
 }
 
 func (a *App) confirm(w http.ResponseWriter, r *http.Request) {
