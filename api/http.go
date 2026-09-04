@@ -56,7 +56,10 @@ func (a *App) middleware(next http.Handler) http.Handler {
 		}()
 		h := w.Header()
 		h.Set("X-Content-Type-Options", "nosniff")
-		h.Set("Referrer-Policy", "no-referrer")
+		// same-origin, not no-referrer: under no-referrer Chrome sends
+		// "Origin: null" on same-origin form posts, which the origin check
+		// below must refuse, and every console/account form breaks.
+		h.Set("Referrer-Policy", "same-origin")
 		h.Set("X-Frame-Options", "DENY")
 		csp := "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
 		if strings.HasPrefix(r.URL.Path, "/admin") {

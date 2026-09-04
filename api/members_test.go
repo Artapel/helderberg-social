@@ -414,4 +414,16 @@ func TestSameOriginFormPostsAllowed(t *testing.T) {
 	if c := try("https://evil.example", "/admin/login"); c != 403 {
 		t.Fatalf("foreign origin accepted on the console: %d", c)
 	}
+	if c := try("null", "/admin/login"); c != 403 {
+		t.Fatalf("opaque origin accepted: %d", c)
+	}
+	// Browsers send Origin: null on form posts when the referrer policy is
+	// no-referrer, so the policy must stay same-origin (or looser).
+	req := httptest.NewRequest("GET", "/admin/login", nil)
+	req.RemoteAddr = "10.5.0.2:1"
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rp := rr.Header().Get("Referrer-Policy"); rp == "no-referrer" || rp == "" {
+		t.Fatalf("Referrer-Policy %q would make browsers send Origin: null on form posts", rp)
+	}
 }

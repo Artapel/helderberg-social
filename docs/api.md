@@ -57,7 +57,7 @@ image, non-root, read-only filesystem, all capabilities dropped.
 - **Input.** Strict vocabularies for town/category/audience/cost/kind, URLs
   must be http(s) without userinfo, control characters stripped, lengths
   enforced server-side. Everything rendered through `html/template`.
-- **Headers.** `nosniff`, `no-referrer`, `X-Frame-Options: DENY`,
+- **Headers.** `nosniff`, `Referrer-Policy: same-origin` (not `no-referrer`: that makes browsers send `Origin: null` on form posts, which the origin check refuses), `X-Frame-Options: DENY`,
   `Content-Security-Policy: default-src 'none'` (admin pages allow inline style),
   HSTS, `Cache-Control: no-store` on everything but `/api/events`.
 - **Facebook.** The Page token lives only in the container's environment and is
