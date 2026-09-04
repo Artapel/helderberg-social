@@ -172,7 +172,10 @@ Direct sending is trusted only when DNS says it is. The four records below are
 what receivers check; `GET /api/mail-dns` serves them as JSON (public
 information) and `docs/dns-setup.py --mail` publishes them at HostAfrica. The
 System page in the console resolves each one live and shows *DNS complete* or
-*DNS incomplete* with the want/have pair per record.
+*DNS incomplete* with the want/have pair per record. Those checks ask public
+resolvers (1.1.1.1, then 8.8.8.8), not the host's, because the host sits on a
+corporate resolver that carries a private copy of the sending address's reverse
+zone and would never show the ISP's PTR.
 
 | Record | Value | Why |
 |---|---|---|

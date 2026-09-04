@@ -167,6 +167,24 @@ func signIfEnabled(d *dkimSigner, raw []byte) ([]byte, error) {
 
 /* ---------- the DNS this needs, and whether it is there ---------- */
 
+// publicResolver answers the way the rest of the internet sees the zone. The
+// host's own resolver is a corporate one that carries a private copy of the
+// sending address's reverse zone (delegated to internal domain controllers)
+// and caches negative answers for a day, so it would report a PTR as missing
+// long after the ISP has published it. Delivery itself still uses the system
+// resolver; this is only for the checks shown on the System page.
+var publicResolver = &net.Resolver{
+	PreferGo: true,
+	Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
+		d := net.Dialer{Timeout: 3 * time.Second}
+		conn, err := d.DialContext(ctx, network, "1.1.1.1:53")
+		if err != nil {
+			conn, err = d.DialContext(ctx, network, "8.8.8.8:53")
+		}
+		return conn, err
+	},
+}
+
 type mailRecord struct {
 	Name, Type, Want, Have, Why string
 	OK                          bool
@@ -178,7 +196,7 @@ func (a *App) mailRecords() []mailRecord {
 	domain := a.mailDomain()
 	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 	defer cancel()
-	res := net.DefaultResolver
+	res := publicResolver
 	txt := func(name string, prefix string) string {
 		vals, _ := res.LookupTXT(ctx, name)
 		for _, v := range vals {
