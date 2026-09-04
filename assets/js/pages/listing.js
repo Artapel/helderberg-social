@@ -24,9 +24,9 @@
     '<section><div class="wrap detail-grid"><div class="stack">' +
     '<div class="panel"><h3>About</h3><p>' + HS.esc(l.summary) + '</p>' +
     (l.tags && l.tags.length ? '<div class="row">' + l.tags.map(function (t) { return '<a class="pill" href="directory.html?q=' + encodeURIComponent(t) + '">' + HS.esc(t) + '</a>'; }).join("") + '</div>' : "") + '</div>' +
-    (l.verified ? '' : '<div class="notice"><b>Not yet verified.</b> This listing was added from public sources and has not been confirmed with the organiser. Check times, prices and whether it is still running before you go. <a href="submit.html?kind=update&id=' + encodeURIComponent(l.id) + '">Know better? Tell us.</a></div>') +
     '<div class="panel" id="lst-upcoming"' + (events.length ? "" : " hidden") + '><h3>Upcoming</h3><div class="event-list">' + events.map(HS.eventRow).join("") + '</div></div>' +
     '<div class="panel"><h3>Nearby &amp; similar</h3><div class="grid">' + related.map(HS.card).join("") + '</div></div>' +
+    (l.verified ? '' : '<div class="notice"><b>Not yet verified.</b> This listing was added from public sources and has not been confirmed with the organiser. Check times, prices and whether it is still running before you go. <a href="submit.html?kind=update&id=' + encodeURIComponent(l.id) + '">Know better? Tell us.</a></div>') +
     '</div><aside class="stack">' +
     '<div class="panel"><h3>Details</h3><dl class="kv">' +
     '<dt>Type</dt><dd>' + HS.esc(HS.typeLabel(l.type)) + '</dd>' +
