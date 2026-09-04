@@ -68,7 +68,11 @@ window.HS_DATA = {
     { id: "family",     name: "Family & kids",      icon: "🎈", hue: 50 },
     { id: "arts",       name: "Arts & culture",     icon: "🎨", hue: 290 },
     { id: "online",     name: "Online groups",      icon: "💬", hue: 220 },
-    { id: "nature",     name: "Parks & nature",     icon: "🌿", hue: 100 }
+    { id: "nature",     name: "Parks & nature",     icon: "🌿", hue: 100 },
+    { id: "sport",      name: "Sport & fitness",    icon: "⚽", hue: 145 },
+    { id: "music",      name: "Music & shows",      icon: "🎭", hue: 310 },
+    { id: "faith",      name: "Faith & worship",    icon: "🕊️", hue: 175 },
+    { id: "camping",    name: "Camping & outdoors", icon: "⛺", hue: 80 }
   ],
 
   audiences: [

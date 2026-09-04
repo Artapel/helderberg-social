@@ -326,7 +326,7 @@ func (a *App) subscribe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tw, ok1 := filterSet(q.Towns, towns, 4)
-	ct, ok2 := filterSet(q.Categories, categories, 11)
+	ct, ok2 := filterSet(q.Categories, categories, len(categories))
 	if !ok1 || !ok2 {
 		a.fail(w, 400, "Unknown town or category.")
 		return

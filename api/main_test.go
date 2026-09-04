@@ -291,7 +291,7 @@ func TestEventSubmissionModeration(t *testing.T) {
 		"bad url":      {"website": "javascript:alert(1)"},
 		"bad time":     {"time": "7am"},
 		"short":        {"summary": "x"},
-		"bad category": {"category": "sport"},
+		"bad category": {"category": "knitting"},
 	} {
 		m := map[string]any{}
 		for k, v := range ev {

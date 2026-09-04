@@ -55,8 +55,8 @@ member_sessions  id_hash PK, member_id, created_at, last_seen_at, expires_at, ip
 events.member_id INTEGER (NULL for everything not posted from an account), index events_member
 ```
 
-Schema version 5; `migrate()` adds `events.member_id` to an older database on
-start-up. Housekeeping (hourly) deletes unconfirmed members after 3 days and
+Schema version 6 (5 added `events.member_id`, 6 added `sources.match`);
+`migrate()` adds the missing columns to an older database on start-up. Housekeeping (hourly) deletes unconfirmed members after 3 days and
 expired or revoked member sessions after a day. The 90-day scrub of
 `submitter_name`/`submitter_email` on decided events applies to member events too;
 the `member_id` link stays, so the console still shows who posted it.

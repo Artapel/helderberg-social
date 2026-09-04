@@ -582,11 +582,11 @@ func (a *App) digestsPage(w http.ResponseWriter, r *http.Request) {
 /* ---------- sources ---------- */
 
 type sourceFull struct {
-	ID                                        int64
-	URL, Kind, Label, Listing, Category, Town string
-	Enabled                                   bool
-	Checked, Hash, Status, Changed            string
-	Events                                    int
+	ID                                               int64
+	URL, Kind, Label, Listing, Category, Town, Match string
+	Enabled                                          bool
+	Checked, Hash, Status, Changed                   string
+	Events                                           int
 }
 
 type sourcesData struct {
@@ -600,12 +600,12 @@ type sourcesData struct {
 
 func (a *App) sourcesPage(w http.ResponseWriter, r *http.Request) {
 	d := sourcesData{Kinds: []string{"ics", "html"}, Towns: sortedKeys(towns), Cats: sortedKeys(categories), LastWatch: a.metaGet("last:watch"), On: a.settingBool("watch_on"), Interval: a.settingInt("watch_minutes")}
-	rows, err := a.db.Query(`SELECT s.id, s.url, s.kind, s.label, s.listing, s.category, s.town, s.enabled, COALESCE(s.last_checked_at,''), s.last_hash, s.last_status, COALESCE(s.last_changed_at,''), (SELECT COUNT(*) FROM events e WHERE e.source_id = s.id) FROM sources s ORDER BY s.enabled DESC, s.label`)
+	rows, err := a.db.Query(`SELECT s.id, s.url, s.kind, s.label, s.listing, s.category, s.town, s.match, s.enabled, COALESCE(s.last_checked_at,''), s.last_hash, s.last_status, COALESCE(s.last_changed_at,''), (SELECT COUNT(*) FROM events e WHERE e.source_id = s.id) FROM sources s ORDER BY s.enabled DESC, s.label`)
 	if err == nil {
 		for rows.Next() {
 			var s sourceFull
 			var en int
-			if rows.Scan(&s.ID, &s.URL, &s.Kind, &s.Label, &s.Listing, &s.Category, &s.Town, &en, &s.Checked, &s.Hash, &s.Status, &s.Changed, &s.Events) == nil {
+			if rows.Scan(&s.ID, &s.URL, &s.Kind, &s.Label, &s.Listing, &s.Category, &s.Town, &s.Match, &en, &s.Checked, &s.Hash, &s.Status, &s.Changed, &s.Events) == nil {
 				s.Enabled = en == 1
 				if len(s.Hash) > 10 {
 					s.Hash = s.Hash[:10]
@@ -623,9 +623,13 @@ func (a *App) saveSource(f url.Values) (string, error) {
 	label := clean(f.Get("label"), 80)
 	listing := strings.TrimSpace(f.Get("listing"))
 	kind, cat, town := f.Get("kind"), f.Get("category"), f.Get("town")
+	match := strings.TrimSpace(f.Get("match"))
+	_, matchErr := compileMatch(match)
 	switch {
 	case !ok || u == "":
 		return "", fmt.Errorf("the source needs a full http(s) address")
+	case matchErr != nil:
+		return "", fmt.Errorf("the filter is not a valid pattern: %v", matchErr)
 	case kind != "ics" && kind != "html":
 		return "", fmt.Errorf("kind must be ics or html")
 	case len(label) < 2:
@@ -636,10 +640,10 @@ func (a *App) saveSource(f url.Values) (string, error) {
 		return "", fmt.Errorf("bad listing reference")
 	}
 	if id := f.Get("id"); id != "" {
-		_, err := a.db.Exec(`UPDATE sources SET url=?, kind=?, label=?, listing=?, category=?, town=? WHERE id=?`, u, kind, label, listing, cat, town, id)
+		_, err := a.db.Exec(`UPDATE sources SET url=?, kind=?, label=?, listing=?, category=?, town=?, match=? WHERE id=?`, u, kind, label, listing, cat, town, match, id)
 		return "Source saved.", err
 	}
-	_, err := a.db.Exec(`INSERT INTO sources(url, kind, label, listing, category, town) VALUES(?,?,?,?,?,?)`, u, kind, label, listing, cat, town)
+	_, err := a.db.Exec(`INSERT INTO sources(url, kind, label, listing, category, town, match) VALUES(?,?,?,?,?,?,?)`, u, kind, label, listing, cat, town, match)
 	return "Source added. It will be checked on the next run.", err
 }
 
@@ -994,14 +998,14 @@ func (a *App) exportAll(w http.ResponseWriter, r *http.Request) {
 		full[i] = evFull{e, e.Status, e.Origin, e.SubmitterName, e.CreatedAt}
 	}
 	var srcs []map[string]any
-	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, enabled FROM sources`)
+	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, match, enabled FROM sources`)
 	if err == nil {
 		for rows.Next() {
 			var id int64
-			var u, k, l, li, c, t string
+			var u, k, l, li, c, t, m string
 			var en int
-			if rows.Scan(&id, &u, &k, &l, &li, &c, &t, &en) == nil {
-				srcs = append(srcs, map[string]any{"id": id, "url": u, "kind": k, "label": l, "listing": li, "category": c, "town": t, "enabled": en == 1})
+			if rows.Scan(&id, &u, &k, &l, &li, &c, &t, &m, &en) == nil {
+				srcs = append(srcs, map[string]any{"id": id, "url": u, "kind": k, "label": l, "listing": li, "category": c, "town": t, "match": m, "enabled": en == 1})
 			}
 		}
 		rows.Close()
@@ -1106,7 +1110,7 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 	case "sub-save":
 		freq, hz := f.Get("frequency"), f.Get("horizon")
 		tw, ok1 := filterSet(f["towns"], towns, 4)
-		ct, ok2 := filterSet(f["categories"], categories, 11)
+		ct, ok2 := filterSet(f["categories"], categories, len(categories))
 		if (freq != "daily" && freq != "weekly") || (hz != "7" && hz != "14" && hz != "30") || !ok1 || !ok2 {
 			err = fmt.Errorf("bad preferences")
 		} else {

@@ -15,7 +15,7 @@ import (
 // data. Keep in step with data/data.js.
 var (
 	towns      = set("somerset-west", "strand", "gordons-bay", "sir-lowrys-pass")
-	categories = set("running", "cycling", "hiking", "water", "markets", "wine", "community", "family", "arts", "online", "nature")
+	categories = set("running", "cycling", "hiking", "water", "markets", "wine", "community", "family", "arts", "online", "nature", "sport", "music", "faith", "camping")
 	audiences  = set("everyone", "families", "kids", "seniors", "beginners", "dogs")
 	costs      = set("free", "paid", "membership", "donation", "varies")
 	kinds      = set("group", "activity", "place", "update")

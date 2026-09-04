@@ -24,7 +24,7 @@ image, non-root, read-only filesystem, all capabilities dropped.
 | Member accounts | Anyone can create an account (name, email, password) at `/account/register`, confirm the address by email, and then post events from `/account`. Each event goes into the same moderation queue; the member sees its state (waiting, published, not published), gets an email either way, and can edit (which sends it back for a check) or remove it. Accounts can change name and password, and delete themselves. Runbook and design in `docs/accounts.md`. |
 | Submissions | Events and listings from the public. Submitter verifies by email; the item then lands in the moderation queue and the admin gets a mail with approve/reject links. Approved events publish immediately. Approved listings produce a ready-to-paste `data.js` block in the queue (listings stay curated in the repo). |
 | Moderation | `moderate.html` asks for the admin address and emails a 12-hour sign-in link. The queue shows pending items, sources and lets the admin run a source check or preview a digest. No passwords exist anywhere. |
-| Source watcher | Every `HS_WATCH_INTERVAL` (6 h) the sources in `api/sources.json` are fetched politely (1.5 s apart, 2 MB cap, 25 s timeout, identified user agent). ICS feeds yield events straight into the queue (deduplicated per UID). Plain pages are hashed after stripping tags and noise; a change emails the admin a "look at this" line. It never publishes anything on its own. |
+| Source watcher | Every `HS_WATCH_INTERVAL` (6 h) the sources in `api/sources.json` are fetched politely (1.5 s apart, 8 MB cap, 25 s timeout, identified user agent). ICS feeds yield events straight into the queue (deduplicated per UID); a feed that covers the whole province carries a `match` pattern and only events mentioning the Helderberg are queued. Plain pages are hashed after stripping tags and noise; a change emails the admin a "look at this" line. It never publishes anything on its own. |
 | Housekeeping | Hourly: unconfirmed subscribers, submissions and member accounts deleted after 3 days, expired member sessions purged, submitter name/email scrubbed 90 days after a decision, used-token and mail-log rows expired. |
 
 ## Security model
@@ -121,7 +121,7 @@ sessions, audited), then remove it.
 | Subscribers | email address or WhatsApp number (channel pill), filter by channel, search either, edit preferences, resend/force confirmation (email link or WhatsApp template), remove, block address or number, add by hand (either), CSV export |
 | Digests | schedule and next runs, preview to yourself, send now (with confirmation), 30-day history |
 | Facebook | connection check, queue with cancel/post now, history with permalinks and retry, write or schedule a post, post any approved event, preview and queue this weekend's list |
-| Sources | add/edit/enable/disable/delete watched pages and ICS feeds, check one or all now, forget a source's memory |
+| Sources | add/edit/enable/disable/delete watched pages and ICS feeds (with an optional filter pattern for regional feeds), check one or all now, forget a source's memory |
 | Analytics | page views and visitors per day, top pages, API routes and errors, subscriber growth, events by town/category (7/30/90 days) |
 | Logs | last 300 requests, mail log (hashes only), audit log, last 500 app log lines |
 | Security | authenticator status, regenerate backup codes, remove authenticator, active sessions with revoke, sign-in history, blocklist |
@@ -235,7 +235,56 @@ the `TXT @` record by hand in that case.
 
 ## Adding a source
 
-Append to `api/sources.json` and redeploy. `kind` is `ics` for a calendar feed
-(the good case: events arrive structured) or `html` for a page to watch. Give
-`listing`, `category` and `town` so auto-captured events land in the right
-place. Never guess a URL: record the one the organiser actually publishes.
+Append to `api/sources.json` and redeploy (`seedSources()` upserts by URL on
+start, so editing an entry updates the live row; deleting one does not remove
+it, disable it in the console). `kind` is `ics` for a calendar feed (the good
+case: events arrive structured) or `html` for a page to watch. Give `listing`,
+`category` and `town` so auto-captured events land in the right place. Never
+guess a URL: record the one the organiser actually publishes, and fetch it
+first to see that it answers.
+
+A feed that covers more than the Helderberg (Western Province Athletics, the
+canoe union, the Mountain Club's Google Calendar) takes a `match`: a
+case-insensitive regular expression tested against each event's title,
+description, location and link. Events that do not match are counted in the
+source's status ("N outside the filter"), never queued, and remembered as seen,
+so they are not offered again unless the admin presses *Forget*. The same
+field is on the console's add and edit forms; a pattern that does not compile
+is refused there and reported as an error on the source by the watcher.
+
+### Where the current list came from (2026-09-04)
+
+Every entry was fetched before it went in. What is there and what is not:
+
+- **ICS feeds (11).** WordPress sites running *The Events Calendar* export at
+  `/events/?ical=1`: Vergelegen, Idiom, Helderberg Hospice, Somerset West
+  Cricket Club, Gordon's Bay Tourism and DistrictMail (the last two answered an
+  empty calendar on the day, and will fill in when they publish), plus the
+  filtered regional ones: Western Province Athletics (30 fixtures, road and
+  track across the province), trailrunning.co.za, the Western Cape Canoe Union,
+  BirdLife Overberg and the Mountain Club of SA Cape Town section (a public
+  Google Calendar, ~4 MB, hence the 8 MB cap).
+- **Watched pages (38).** Theatres and music (Playhouse, Drama Factory,
+  Helderberg Nature Reserve concerts, Triggerfish), nature (reserve walks and
+  talks, Somerset West Bird Club programme and events, Helderberg Farm),
+  camping (CapeNature's Kogelberg page and events page, the Kogel Bay campsite
+  listing), sport (Helderberg Rugby, the two golf clubs, GBYC calendar, WP
+  Cycling calendar), faith (Christ Church, NG Kerk Somerset-Wes and
+  Gordonsbaai, Strand Baptist, Liberty, Every Nation, the Catholic parish page
+  on the archdiocese site), community (Village Collective what's on, HSFA
+  newsletters, helderberg.biz RSS) and the markets and running pages that were
+  there before.
+- **Left out on purpose.** Aggregators that change every day (allevents.in,
+  Eventbrite, Quicket, Webtickets, capetownmagazine, Cape Town ETC's feed is
+  news posts, not events) would alert on every check. NG Kerk Gordonsbaai's
+  Google Calendar is all recurring services, which the parser does not expand,
+  so the site's page is watched instead. Facebook-only organisers (Winter
+  Wonderland, Skilpad Theatre, Red Sky Brew, most churches) cannot be watched.
+  Stellenbosch-side estates and Overberg-only outings are outside the area.
+- **Dead or empty on the day.** `redskybrew.co.za` and `playhousetheatre.co.za`
+  do not resolve, `hendon.co.za` is a JavaScript shell, Somerset Mall's site
+  renders nothing without a browser, Quicket's search pages likewise.
+
+Categories were widened at the same time: `sport` (Sport & fitness), `music`
+(Music & shows), `faith` (Faith & worship) and `camping` (Camping & outdoors)
+join the original eleven in `data/data.js`, `api/validate.go` and the console.

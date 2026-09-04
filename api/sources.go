@@ -15,7 +15,11 @@ import (
 
 // The watcher re-checks known sources on a schedule. Feeds (ICS) yield real
 // events that go straight into the moderation queue; plain web pages can only
-// be hashed, so a change produces a "look at this" line for the admin. It
+// be hashed, so a change produces a "look at this" line for the admin. A
+// feed that covers the whole province can carry a "match" pattern (a
+// case-insensitive regular expression) and then only events whose title,
+// description, location or link matches it are queued; the rest are counted
+// and dropped, and never offered again unless the admin uses Forget. It
 // never publishes anything on its own.
 
 //go:embed sources.json
@@ -31,6 +35,24 @@ type sourceDef struct {
 	Listing  string `json:"listing"`
 	Category string `json:"category"`
 	Town     string `json:"town"`
+	Match    string `json:"match,omitempty"`
+}
+
+// matchLimit caps a source filter; anything longer is a mistake, not a pattern.
+const matchLimit = 300
+
+// compileMatch turns a source's filter into a case-insensitive regexp, or
+// nil for an empty filter. A bad pattern is an error the watcher reports on
+// that source rather than something it guesses around.
+func compileMatch(m string) (*regexp.Regexp, error) {
+	m = strings.TrimSpace(m)
+	if m == "" {
+		return nil, nil
+	}
+	if len(m) > matchLimit {
+		return nil, fmt.Errorf("filter longer than %d characters", matchLimit)
+	}
+	return regexp.Compile("(?i)" + m)
 }
 
 func (a *App) seedSources() error {
@@ -42,9 +64,12 @@ func (a *App) seedSources() error {
 		if d.Kind != "ics" && d.Kind != "html" {
 			return fmt.Errorf("sources.json: %s has kind %q", d.URL, d.Kind)
 		}
-		if _, err := a.db.Exec(`INSERT INTO sources(url, kind, label, listing, category, town) VALUES(?,?,?,?,?,?)
-			ON CONFLICT(url) DO UPDATE SET kind=excluded.kind, label=excluded.label, listing=excluded.listing, category=excluded.category, town=excluded.town`,
-			d.URL, d.Kind, d.Label, d.Listing, d.Category, d.Town); err != nil {
+		if _, err := compileMatch(d.Match); err != nil {
+			return fmt.Errorf("sources.json: %s has a bad match pattern: %w", d.URL, err)
+		}
+		if _, err := a.db.Exec(`INSERT INTO sources(url, kind, label, listing, category, town, match) VALUES(?,?,?,?,?,?,?)
+			ON CONFLICT(url) DO UPDATE SET kind=excluded.kind, label=excluded.label, listing=excluded.listing, category=excluded.category, town=excluded.town, match=excluded.match`,
+			d.URL, d.Kind, d.Label, d.Listing, d.Category, d.Town, d.Match); err != nil {
 			return err
 		}
 	}
@@ -138,7 +163,9 @@ func (a *App) fetch(url string) ([]byte, error) {
 	if resp.StatusCode != 200 {
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	// 8 MB: a club's Google Calendar with a decade of history is around 4 MB,
+	// and cutting it short would silently drop whichever events came last.
+	return io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 }
 
 // runWatch checks every enabled source once and returns a one-line summary.
@@ -153,19 +180,19 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 		return "A check is already running."
 	}
 	defer a.watchMu.Unlock()
-	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, last_hash FROM sources WHERE `+where, args...)
+	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, match, last_hash FROM sources WHERE `+where, args...)
 	if err != nil {
 		a.logf("watch: %v", err)
 		return "error: " + err.Error()
 	}
 	type src struct {
-		id                                                  int64
-		url, kind, label, listing, category, town, lastHash string
+		id                                                         int64
+		url, kind, label, listing, category, town, match, lastHash string
 	}
 	var list []src
 	for rows.Next() {
 		var s src
-		if err := rows.Scan(&s.id, &s.url, &s.kind, &s.label, &s.listing, &s.category, &s.town, &s.lastHash); err == nil {
+		if err := rows.Scan(&s.id, &s.url, &s.kind, &s.label, &s.listing, &s.category, &s.town, &s.match, &s.lastHash); err == nil {
 			list = append(list, s)
 		}
 	}
@@ -175,7 +202,11 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 	newEvents, changed, errs := 0, 0, 0
 	today := time.Now().In(a.cfg.TZ).Truncate(24 * time.Hour)
 	for _, s := range list {
-		body, err := a.fetch(s.url)
+		filter, err := compileMatch(s.match)
+		var body []byte
+		if err == nil {
+			body, err = a.fetch(s.url)
+		}
 		status := "ok"
 		if err != nil {
 			status = "error: " + clean(err.Error(), 120)
@@ -187,9 +218,13 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 		switch s.kind {
 		case "ics":
 			evs := parseICS(string(body), a.cfg.TZ)
-			added := 0
+			added, skipped := 0, 0
 			for _, ev := range evs {
 				if ev.Start.Before(today.AddDate(0, 0, -1)) || ev.Start.After(today.AddDate(1, 0, 0)) {
+					continue
+				}
+				if filter != nil && !filter.MatchString(ev.Summary+"\n"+ev.Description+"\n"+ev.Location+"\n"+ev.URL) {
+					skipped++
 					continue
 				}
 				res, err := a.db.Exec(`INSERT OR IGNORE INTO seen_uids(source_id, uid, seen_at) VALUES(?,?,?)`, s.id, ev.UID, now())
@@ -239,6 +274,9 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 			}
 			newEvents += added
 			status = fmt.Sprintf("ok, %d events in feed, %d new", len(evs), added)
+			if filter != nil {
+				status += fmt.Sprintf(", %d outside the filter", skipped)
+			}
 			_, _ = a.db.Exec(`UPDATE sources SET last_checked_at=?, last_status=? WHERE id=?`, now(), status, s.id)
 		case "html":
 			h := pageHash(body)

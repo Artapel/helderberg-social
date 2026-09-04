@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 5
+const schemaVersion = 6
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -110,6 +110,7 @@ var schema = []string{
 		listing TEXT NOT NULL DEFAULT '',
 		category TEXT NOT NULL DEFAULT 'community',
 		town TEXT NOT NULL DEFAULT 'somerset-west',
+		match TEXT NOT NULL DEFAULT '',
 		enabled INTEGER NOT NULL DEFAULT 1,
 		last_checked_at TEXT,
 		last_hash TEXT NOT NULL DEFAULT '',
@@ -193,6 +194,12 @@ func migrate(db *sql.DB) error {
 		}
 		if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS events_member ON events(member_id)`); err != nil {
 			return fmt.Errorf("migrate events_member index: %w", err)
+		}
+	}
+	// v6: a regional feed can carry a filter so only Helderberg events are queued.
+	if !hasColumn(db, "sources", "match") {
+		if _, err := db.Exec(`ALTER TABLE sources ADD COLUMN match TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("migrate sources.match: %w", err)
 		}
 	}
 	return nil
