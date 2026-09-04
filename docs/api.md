@@ -47,7 +47,7 @@ image, non-root, read-only filesystem, all capabilities dropped.
   single-use link (15 min) and then a time-based code from Google Authenticator
   (RFC 6238) or a one-time backup code. Moderation links in emails land inside
   the console and need a session, so a forwarded email can approve nothing.
-- **Origin.** CORS allows only `HS_SITE_URL`. Requests are limited per IP
+- **Origin.** CORS allows only `HS_SITE_URL`; the API's own origin passes too, because browsers send `Origin` on same-origin form posts (the console and account pages). Any other origin is refused on non-GET. Requests are limited per IP
   (token bucket: 60 GET/min; 6 POST/min for public writes, the admin sign-in
   steps and the anonymous account forms (register, sign in, forgot, reset,
   resend); 120/min for the signed-in console and the signed-in account

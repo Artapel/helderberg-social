@@ -74,8 +74,10 @@ func (a *App) middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// CORS: only the site itself may call from a browser.
-		if origin := r.Header.Get("Origin"); origin != "" {
+		// CORS: only the site itself may call from a browser. Browsers also
+		// send Origin on same-origin form POSTs (the console and account
+		// pages), so this host's own origin passes without CORS headers.
+		if origin := r.Header.Get("Origin"); origin != "" && !strings.EqualFold(strings.TrimSuffix(origin, "/"), strings.TrimSuffix(a.cfg.APIURL, "/")) {
 			h.Add("Vary", "Origin")
 			if origin == a.cfg.SiteURL {
 				h.Set("Access-Control-Allow-Origin", origin)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -385,3 +386,32 @@ func TestPasswordHashing(t *testing.T) {
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
+
+// Browsers put an Origin header on same-origin form posts. The console and
+// the account pages live on the API host, so its own origin must pass; the
+// site's origin gets CORS headers; anything else is refused.
+func TestSameOriginFormPostsAllowed(t *testing.T) {
+	a, _ := testApp(t)
+	h := a.routes()
+	try := func(origin, path string) int {
+		req := httptest.NewRequest("POST", path, strings.NewReader("email=x@example.org"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("Origin", origin)
+		req.RemoteAddr = "10.5.0.1:1"
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		return rr.Code
+	}
+	if c := try("https://api.helderbergsocial.co.za", "/admin/login"); c != 200 {
+		t.Fatalf("console form post from its own origin: %d", c)
+	}
+	if c := try("https://api.helderbergsocial.co.za", "/account/login"); c != 303 {
+		t.Fatalf("account form post from its own origin: %d", c)
+	}
+	if c := try("https://evil.example", "/account/login"); c != 403 {
+		t.Fatalf("foreign origin accepted: %d", c)
+	}
+	if c := try("https://evil.example", "/admin/login"); c != 403 {
+		t.Fatalf("foreign origin accepted on the console: %d", c)
+	}
+}
