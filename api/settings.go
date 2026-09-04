@@ -38,6 +38,9 @@ var settingDefs = []settingDef{
 	{Key: "fb_weekend_on", Label: "Facebook: weekly \"this weekend\" post", Help: "Once a week, a list of the approved events on the coming Saturday and Sunday. Skipped when there is nothing on.", Kind: "bool"},
 	{Key: "fb_weekend_day", Label: "Facebook: weekend post day", Help: "Which day the weekend list is posted (Thursday or Friday works best).", Kind: "select-day"},
 	{Key: "fb_weekend_hour", Label: "Facebook: weekend post hour (local)", Help: "Hour of the day, 0-23.", Kind: "int"},
+	{Key: "fb_groups_remind", Label: "Facebook groups: daily reminder email", Help: "Each morning (not Sundays) that groups are due, email the admin the day's batch with the post text ready to paste. Nothing is posted automatically.", Kind: "bool"},
+	{Key: "fb_groups_per_day", Label: "Facebook groups: groups per day", Help: "How many due groups one reminder lists. 1-20; a few a day keeps the page off Facebook's spam radar.", Kind: "int"},
+	{Key: "fb_groups_hour", Label: "Facebook groups: reminder hour (local)", Help: "Hour of the day, 0-23.", Kind: "int"},
 }
 
 func (a *App) settingDefault(key string) string {
@@ -48,8 +51,12 @@ func (a *App) settingDefault(key string) string {
 		return fmt.Sprint(int(a.cfg.WeeklyDay))
 	case "watch_minutes":
 		return fmt.Sprint(int(a.cfg.WatchInterval.Minutes()))
-	case "digests_on", "watch_on", "submissions_on", "subscriptions_on", "registrations_on":
+	case "digests_on", "watch_on", "submissions_on", "subscriptions_on", "registrations_on", "fb_groups_remind":
 		return "1"
+	case "fb_groups_per_day":
+		return "4"
+	case "fb_groups_hour":
+		return "8"
 	case "maintenance_text":
 		return "We are doing a little maintenance. Please try again in a few minutes."
 	case "events_window_days":
@@ -119,6 +126,14 @@ func (a *App) saveSettings(form map[string]string) (string, error) {
 			case "fb_weekend_hour":
 				if n < 0 || n > 23 {
 					return "", fmt.Errorf("Facebook weekend post hour must be 0-23")
+				}
+			case "fb_groups_hour":
+				if n < 0 || n > 23 {
+					return "", fmt.Errorf("Facebook groups reminder hour must be 0-23")
+				}
+			case "fb_groups_per_day":
+				if n < 1 || n > 20 {
+					return "", fmt.Errorf("Facebook groups per day must be 1-20")
 				}
 			}
 			v = fmt.Sprint(n)

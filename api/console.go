@@ -67,6 +67,7 @@ func (a *App) registerConsole(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/subscribers/edit", a.requireAdmin(a.subscriberEditPage))
 	mux.HandleFunc("GET /admin/digests", a.requireAdmin(a.digestsPage))
 	mux.HandleFunc("GET /admin/facebook", a.requireAdmin(a.facebookPage))
+	mux.HandleFunc("GET /admin/facebook/groups", a.requireAdmin(a.groupsPage))
 	mux.HandleFunc("GET /admin/sources", a.requireAdmin(a.sourcesPage))
 	mux.HandleFunc("GET /admin/analytics", a.requireAdmin(a.analyticsPage))
 	mux.HandleFunc("GET /admin/logs", a.requireAdmin(a.logsPage))
@@ -630,8 +631,8 @@ func (a *App) saveSource(f url.Values) (string, error) {
 		return "", fmt.Errorf("the source needs a full http(s) address")
 	case matchErr != nil:
 		return "", fmt.Errorf("the filter is not a valid pattern: %v", matchErr)
-	case kind != "ics" && kind != "html":
-		return "", fmt.Errorf("kind must be ics or html")
+	case !sourceKinds[kind]:
+		return "", fmt.Errorf("kind must be ics, html or list")
 	case len(label) < 2:
 		return "", fmt.Errorf("give the source a label")
 	case !categories[cat], !towns[town]:
@@ -1260,6 +1261,11 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 	case "fb-compose", "fb-cancel", "fb-retry", "fb-now", "fb-event", "fb-weekend", "fb-check":
 		msg, err = a.facebookAction(r, action, id)
 		ret = "/admin/facebook"
+	case "grp-posted", "grp-save", "grp-skip", "grp-enable", "grp-defer", "grp-delete", "grp-remind":
+		msg, err = a.groupsAction(r, action, id)
+		if ret == "" || ret == "/admin" {
+			ret = "/admin/facebook/groups"
+		}
 	case "settings-save":
 		form := map[string]string{}
 		for _, d := range settingDefs {

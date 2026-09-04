@@ -83,6 +83,9 @@ func newApp(cfg *Config) (*App, error) {
 	if err := a.seedSources(); err != nil {
 		return nil, err
 	}
+	if err := a.seedGroups(); err != nil {
+		return nil, err
+	}
 	if err := a.seedEvents(); err != nil {
 		return nil, err
 	}

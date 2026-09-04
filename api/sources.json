@@ -18,11 +18,11 @@
   {"url": "https://gordonsbay.travel/events/?ical=1", "kind": "ics", "label": "Gordon's Bay Tourism events calendar", "listing": "", "category": "community", "town": "gordons-bay"},
   {"url": "https://novanews.co.za/districtmailhelderberg/events/?ical=1", "kind": "ics", "label": "DistrictMail events calendar", "listing": "districtmail-whats-happening", "category": "community", "town": "somerset-west"},
 
-  {"url": "https://wpa.org.za/events/?ical=1", "kind": "ics", "label": "Western Province Athletics fixtures (Helderberg only)", "listing": "", "category": "running", "town": "somerset-west", "match": "somerset|strand|gordon|helderberg|lowry|lourensford|vergelegen|kogel|steenbras|hottentots|macassar|firgrove"},
-  {"url": "https://trailrunning.co.za/events/?ical=1", "kind": "ics", "label": "trailrunning.co.za events (Helderberg only)", "listing": "", "category": "running", "town": "somerset-west", "match": "somerset|strand|gordon|helderberg|lowry|lourensford|vergelegen|kogel|steenbras|hottentots|macassar|firgrove"},
-  {"url": "https://wccanoeunion.co.za/events/?ical=1", "kind": "ics", "label": "Western Cape Canoe Union calendar (Helderberg only)", "listing": "", "category": "water", "town": "strand", "match": "somerset|strand|gordon|helderberg|lowry|kogel|steenbras|hottentots|macassar|firgrove|false bay"},
+  {"url": "https://wpa.org.za/events/?ical=1", "kind": "ics", "label": "Western Province Athletics fixtures (Helderberg only)", "listing": "", "category": "running", "town": "somerset-west", "match": "somerset|strand|gordon|helderberg|lowry|lourensford|vergelegen|kogel|steenbras|hottentots|firgrove"},
+  {"url": "https://trailrunning.co.za/events/?ical=1", "kind": "ics", "label": "trailrunning.co.za events (Helderberg only)", "listing": "", "category": "running", "town": "somerset-west", "match": "somerset|strand|gordon|helderberg|lowry|lourensford|vergelegen|kogel|steenbras|hottentots|firgrove"},
+  {"url": "https://wccanoeunion.co.za/events/?ical=1", "kind": "ics", "label": "Western Cape Canoe Union calendar (Helderberg only)", "listing": "", "category": "water", "town": "strand", "match": "somerset|strand|gordon|helderberg|lowry|kogel|steenbras|hottentots|firgrove|false bay"},
   {"url": "https://calendar.google.com/calendar/ical/mcsa.capetown%40gmail.com/public/basic.ics", "kind": "ics", "label": "Mountain Club (Cape Town section) meets (Helderberg only)", "listing": "", "category": "hiking", "town": "somerset-west", "match": "somerset|strand|gordon|helderberg|lowry|lourensford|vergelegen|kogel|steenbras|hottentots|landdroskop|boesmanskloof|sneeukop"},
-  {"url": "https://birdlifeoverberg.org.za/events/?ical=1", "kind": "ics", "label": "BirdLife Overberg outings (Helderberg only)", "listing": "", "category": "nature", "town": "gordons-bay", "match": "somerset|strand|gordon|helderberg|lowry|kogel|steenbras|hottentots|rooi ?els|betty|macassar|paardevlei"},
+  {"url": "https://birdlifeoverberg.org.za/events/?ical=1", "kind": "ics", "label": "BirdLife Overberg outings (Helderberg only)", "listing": "", "category": "nature", "town": "gordons-bay", "match": "somerset|strand|gordon|helderberg|lowry|kogel|steenbras|hottentots|rooi ?els|betty|paardevlei"},
 
   {"url": "https://www.theplayhouse.org.za/whats-on", "kind": "html", "label": "Playhouse Theatre: what's on", "listing": "playhouse-theatre-somerset-west", "category": "music", "town": "somerset-west"},
   {"url": "https://www.dramafactory.co.za/", "kind": "html", "label": "The Drama Factory", "listing": "", "category": "music", "town": "somerset-west"},
@@ -52,8 +52,15 @@
   {"url": "https://liberty.org.za/", "kind": "html", "label": "Liberty Family Church", "listing": "", "category": "faith", "town": "somerset-west"},
   {"url": "https://www.enhelderberg.org/events", "kind": "html", "label": "Every Nation Helderberg events", "listing": "", "category": "faith", "town": "somerset-west"},
   {"url": "https://adct.org.za/somerset-west/", "kind": "html", "label": "Catholic parish Somerset West (Archdiocese page)", "listing": "", "category": "faith", "town": "somerset-west"},
+  {"url": "https://newgen.co.za/connect/", "kind": "html", "label": "NewGen Church Somerset West: gatherings", "listing": "", "category": "faith", "town": "somerset-west"},
+  {"url": "https://newgen.co.za/", "kind": "html", "label": "NewGen Church Somerset West: home", "listing": "", "category": "faith", "town": "somerset-west"},
 
   {"url": "https://www.villagecollective.co.za/whats-on", "kind": "html", "label": "Somerset West Village Collective: what's on", "listing": "somerset-west-village-collective", "category": "community", "town": "somerset-west"},
   {"url": "https://hsfa.org.za/events-news/newsletters/", "kind": "html", "label": "Helderberg Society for the Aged newsletters", "listing": "", "category": "community", "town": "somerset-west"},
+  {"url": "https://swnightshelter.org.za/get-involved/", "kind": "html", "label": "Somerset West Night Shelter: get involved", "listing": "", "category": "community", "town": "somerset-west"},
+  {"url": "https://swnightshelter.org.za/", "kind": "html", "label": "Somerset West Night Shelter: home", "listing": "", "category": "community", "town": "somerset-west"},
+
+  {"url": "https://allevents.in/somerset-west/RSS", "kind": "list", "label": "allevents.in Somerset West (new listings only)", "listing": "", "category": "community", "town": "somerset-west"},
+  {"url": "https://www.capetownmagazine.com/events", "kind": "list", "label": "Cape Town Magazine events (new links only, Helderberg words)", "listing": "", "category": "community", "town": "somerset-west", "match": "somerset|strand|gordon|helderberg|lourensford|vergelegen|kogel"},
   {"url": "https://longridge.co.za/", "kind": "html", "label": "Longridge Wine Estate", "listing": "longridge-wine-estate", "category": "wine", "town": "somerset-west"}
 ]

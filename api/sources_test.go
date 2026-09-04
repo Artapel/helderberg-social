@@ -95,7 +95,7 @@ func TestSeedSourcesAndCategories(t *testing.T) {
 		var u, k, c, tw, m string
 		must(t, rows.Scan(&u, &k, &c, &tw, &m))
 		n++
-		if (k != "ics" && k != "html") || !categories[c] || !towns[tw] {
+		if !sourceKinds[k] || !categories[c] || !towns[tw] {
 			t.Errorf("seeded source %s has kind=%s category=%s town=%s", u, k, c, tw)
 		}
 		if _, err := compileMatch(m); err != nil {

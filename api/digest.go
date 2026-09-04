@@ -31,6 +31,7 @@ func (a *App) scheduler(ctx context.Context) {
 				}
 			}
 			a.fbTick(n)
+			a.groupsTick(n)
 			if n.Hour() == 3 && a.metaGet("last:housekeeping") != day {
 				_ = a.metaSet("last:housekeeping", day)
 				a.housekeeping()

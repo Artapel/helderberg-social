@@ -55,7 +55,9 @@ member_sessions  id_hash PK, member_id, created_at, last_seen_at, expires_at, ip
 events.member_id INTEGER (NULL for everything not posted from an account), index events_member
 ```
 
-Schema version 6 (5 added `events.member_id`, 6 added `sources.match`);
+Schema version 7 (5 added `events.member_id`, 6 added `sources.match`, 7 widened
+`sources.kind` to allow `list` by rebuilding the table, and added `fb_groups`
+for the Facebook groups rota in `docs/facebook.md`);
 `migrate()` adds the missing columns to an older database on start-up. Housekeeping (hourly) deletes unconfirmed members after 3 days and
 expired or revoked member sessions after a day. The 90-day scrub of
 `submitter_name`/`submitter_email` on decided events applies to member events too;

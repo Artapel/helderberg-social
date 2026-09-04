@@ -83,6 +83,111 @@ Then a steady rhythm: Thursday "this weekend" post, one listing spotlight per we
 page on the site so the OG card renders), and the site's own new events as Facebook Events with
 the same details. Tag the town in each post ("Strand", "Gordon's Bay") for local reach.
 
+## Groups: posting in every group the page belongs to (built 2026-09-04)
+
+The page profile has joined **87 Facebook groups** (one more, a rentals group, is still
+pending), from the big community boards (Gordon's Bay, Somerset West, Strand, HELDERBERG
+CONNECT) to markets, parents, hikers, cyclists, church and business groups. The aim is one post
+in every group, then one a month in each. Two hard facts shape how that is done:
+
+- Meta's Graph API **cannot post in groups** (the Groups API was removed in April 2024).
+- Driving the browser by script is against Facebook's terms and gets the page restricted.
+
+So the API is a **planner**, not a poster. The shipped list is `api/fb-groups.json` (upserted by
+`fb_id` on start; the admin's cadence, on/off and history are kept), the table is `fb_groups`,
+and the console page **Facebook -> Groups** (`/admin/facebook/groups`) shows what is due, the
+prepared text for each group, and the full rota. The daily batch is also emailed (setting
+`Facebook groups: daily reminder email`, default on, 08:00, 4 groups a day, never on Sundays)
+with the post text ready to paste and the group links.
+
+**Posting a batch (a person does this, 5 minutes a day):**
+
+1. Open the group link from the console or the email.
+2. In the composer switch the profile to **Helderberg Social** (post *as the page*, not as
+   yourself). Read the group's rules; a group that forbids promotion gets a shorter, friendlier
+   version, or nothing.
+3. Paste the text. It is built per group: a lead paragraph by kind (community boards get a
+   neighbourly intro; markets and business groups get "not a sale, a free resource"; parents',
+   hikers' and cyclists' groups lead with their kind of event), up to 8 approved events in the
+   next 30 days scored by the group's town and interests, and links to `/events.html`,
+   `/submit.html?kind=event` and `/subscribe.html`.
+4. Press **Mark posted** in the console. The group is booked again after its cadence (30 days
+   by default, 7-120 allowed per group). **Later** pushes it out a week; **Switch off** with a
+   reason takes it off the rota without losing its history.
+
+Groups that ship switched off: *What's On West Somerset* (it is Somerset in the UK) and the
+rentals group (join still pending). Macassar and Sir Lowry's Pass groups were left out of the
+list on Corne's instruction (2026-09-04).
+
+### More groups worth joining (found 2026-09-04, NOT joined yet)
+
+Searched as the page for Somerset West, Strand, Gordon's Bay and Helderberg groups; 185 raw
+hits curated to the 47 below. Joining is an outward-facing action and needs a go-ahead per
+batch; a private group's join questions must be answered by hand. Add each joined group to the
+console (or `api/fb-groups.json`) so it enters the rota.
+
+**Tier A: community / what's-on / events / nature (recommended)**
+
+| Group | Facebook | Size |
+|---|---|---|
+| Gordon's Bay | `https://www.facebook.com/groups/gordonsbay/` | Public 70K |
+| Strand Community Information | `https://www.facebook.com/groups/254613258524095/` | Public 64K |
+| Somerset West Community | `https://www.facebook.com/groups/somersetwest1/` | PRIVATE 52K (join request, may ask questions) |
+| Gordonsbay Community | `https://www.facebook.com/groups/313891233041632/` | Public 39K |
+| HELDERBERG CONNECT | `https://www.facebook.com/groups/3629705530503011/` | Public 37K |
+| Gordon's Bay, Western Cape, South Africa | `https://www.facebook.com/groups/434603406886641/` | Public 20K |
+| GORDON'S BAY Community | `https://www.facebook.com/groups/GORDONSBAYCOMMUNITY/` | Public 17K |
+| This is Gordon's Bay and Strand | `https://www.facebook.com/groups/thisisgordonsbay/` | Public 12K |
+| Strand Community | `https://www.facebook.com/groups/284941500201097/` | Public 10K |
+| GORDON'S BAY | `https://www.facebook.com/groups/1466793730292518/` | Public 10K |
+| Se jou Se - Die strand | `https://www.facebook.com/groups/979684890585480/` | Public 10K |
+| Helderberg Ocean Awareness Movement | `https://www.facebook.com/groups/604855949952137/` | Public 9.5K |
+| Strand group | `https://www.facebook.com/groups/376079167217610/` | Public 7.2K |
+| Strand.Western Cape | `https://www.facebook.com/groups/106916612351988/` | Public 6.3K |
+| Gordons Bay Shop talk. | `https://www.facebook.com/groups/gbmeetngreet/` | Public 5.7K |
+| Upcoming markets in the Helderberg and Stellenbosch | `https://www.facebook.com/groups/3102730903191234/` | Public 4.8K |
+| Gordon's Bay Attractions | `https://www.facebook.com/groups/735404033773779/` | Public 4.6K |
+| Gordon's bay | `https://www.facebook.com/groups/1170204483812342/` | Public 4.2K |
+| Somerset nd strand Gordon's bay | `https://www.facebook.com/groups/5043714199046569/` | Public 3K |
+| Gordon's bay group | `https://www.facebook.com/groups/441055555340159/` | Public 2.7K |
+| Helderberg Gemeente gesels lekker | `https://www.facebook.com/groups/667393276698474/` | Public 2.1K |
+| Gordon's Bayers | `https://www.facebook.com/groups/637877397456908/` | Public 2K |
+| Gordon's Bay Care Group | `https://www.facebook.com/groups/1723077057959411/` | Public 1.9K |
+| Helderberg Yard Sale, Markets & Events | `https://www.facebook.com/groups/1052127465699364/` | Public 1.4K |
+| Gordon's Bay Neighbours | `https://www.facebook.com/groups/1708482875906216/` | Public 1.1K |
+| What to do in Gordon's bay | `https://www.facebook.com/groups/471537390934985/` | Public 975 |
+| Somerset West Bird Club Group | `https://www.facebook.com/groups/555030771841728/` | Public 942 |
+| Somerset West Holistic / Natural | `https://www.facebook.com/groups/267558530099471/` | Public 810 |
+| Somerset West Cape Town | `https://www.facebook.com/groups/124755377598692/` | Public 758 |
+| Gordon's Bay Moms | `https://www.facebook.com/groups/2849601105346097/` | Public 364 |
+| HELDERBERG EVENTS | `https://www.facebook.com/groups/365495583633624/` | Public 150 |
+
+**Tier B: advertising / business groups (same kind as several already joined)**
+
+| Group | Facebook | Size |
+|---|---|---|
+| Gordon's Bay/Strand 1 | `https://www.facebook.com/groups/gordonbay1/` | PRIVATE 102K |
+| Somerset West Business Services (Western Cape, South Africa only!) | `https://www.facebook.com/groups/599676986832992/` | Public 25K |
+| Advertise We Can - Helderberg Basin & Stellenbosch | `https://www.facebook.com/groups/523249271818385/` | Public 17K |
+| Helderberg Business Adverts | `https://www.facebook.com/groups/helderbergbusinessadverts/` | Public 15K |
+| Our Helderberg Businesses | `https://www.facebook.com/groups/ourhelderberg/` | Public 13K |
+| Helderberg Small Business Hub | `https://www.facebook.com/groups/263871911437043/` | Public 11K |
+| Somerset West/Strand/Greenways/Gordon's Bay/Kleinbos Ads Exec | `https://www.facebook.com/groups/739286007100690/` | Public 9.2K |
+| #ADS in Gordons Bay (Western Cape) | `https://www.facebook.com/groups/1613005609026696/` | Public 8.6K |
+| Gordons Bay Business Adverts | `https://www.facebook.com/groups/1446655952279923/` | Public 7.7K |
+| Somerset west business group | `https://www.facebook.com/groups/seeke/` | Public 7.5K |
+| Advertise your Business - STRICTLY Helderberg | `https://www.facebook.com/groups/1611723175731016/` | Public 6.4K |
+| Business Services - Helderberg & Surrounding Areas | `https://www.facebook.com/groups/helderbergservices1/` | Public 6K |
+| Gordonsbay Business | `https://www.facebook.com/groups/908203736604663/` | Public 4.2K |
+| Somerset West Advertising | `https://www.facebook.com/groups/1127589942594965/` | Public 1.5K |
+| Kleinmond to Somerset West Business Club | `https://www.facebook.com/groups/444035468224122/` | Public 1.9K |
+| Gordon's Bay Advertising | `https://www.facebook.com/groups/787944077509266/` | Public 462 |
+
+**Skipped: Macassar and Sir Lowry's Pass (Corne), UK Somerset groups, Somerset East, jobs, rentals/property, pets, crime/security, niche sales (games, beauty, perfume, cars), township-specific Strand groups, singles/gay social (ask if wanted)**
+
+| Group | Facebook | Size |
+|---|---|---|
+
 ## Automatic posting (built 2026-09-04, off until the token is set)
 
 The API can post to the page itself through the Graph API. It is off until `api/.env` has

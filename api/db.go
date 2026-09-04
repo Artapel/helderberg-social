@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 6
+const schemaVersion = 7
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -105,7 +105,7 @@ var schema = []string{
 	`CREATE TABLE IF NOT EXISTS sources (
 		id INTEGER PRIMARY KEY,
 		url TEXT NOT NULL UNIQUE,
-		kind TEXT NOT NULL CHECK (kind IN ('ics','html')),
+		kind TEXT NOT NULL CHECK (kind IN ('ics','html','list')),
 		label TEXT NOT NULL,
 		listing TEXT NOT NULL DEFAULT '',
 		category TEXT NOT NULL DEFAULT 'community',
@@ -131,6 +131,23 @@ var schema = []string{
 	`CREATE UNIQUE INDEX IF NOT EXISTS fb_posts_ref ON fb_posts (kind, ref) WHERE ref <> ''`,
 	`CREATE INDEX IF NOT EXISTS fb_posts_due ON fb_posts (status, due_at)`,
 	`CREATE TABLE IF NOT EXISTS blocklist (id INTEGER PRIMARY KEY, kind TEXT NOT NULL CHECK (kind IN ('ip','email')), value TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL, UNIQUE (kind, value))`,
+	// v7: Facebook groups the page posts in by hand, on a cadence the console tracks.
+	`CREATE TABLE IF NOT EXISTS fb_groups (
+		id INTEGER PRIMARY KEY,
+		fb_id TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL,
+		kind TEXT NOT NULL DEFAULT 'community',
+		town TEXT NOT NULL DEFAULT '',
+		note TEXT NOT NULL DEFAULT '',
+		cadence_days INTEGER NOT NULL DEFAULT 30,
+		enabled INTEGER NOT NULL DEFAULT 1,
+		skip_reason TEXT NOT NULL DEFAULT '',
+		posts INTEGER NOT NULL DEFAULT 0,
+		last_posted_at TEXT NOT NULL DEFAULT '',
+		next_due TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL
+	)`,
+	`CREATE INDEX IF NOT EXISTS fb_groups_due ON fb_groups (enabled, next_due)`,
 }
 
 func openDB(dir string) (*sql.DB, error) {
@@ -200,6 +217,37 @@ func migrate(db *sql.DB) error {
 	if !hasColumn(db, "sources", "match") {
 		if _, err := db.Exec(`ALTER TABLE sources ADD COLUMN match TEXT NOT NULL DEFAULT ''`); err != nil {
 			return fmt.Errorf("migrate sources.match: %w", err)
+		}
+	}
+	// v7: a third source kind, "list". The kind lives in a CHECK constraint,
+	// which SQLite cannot alter in place, so the table is rebuilt once.
+	var sourcesSQL string
+	_ = db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='sources'`).Scan(&sourcesSQL)
+	if sourcesSQL != "" && !strings.Contains(sourcesSQL, "'list'") {
+		_, err := db.Exec(`BEGIN;
+			CREATE TABLE sources_v7 (
+				id INTEGER PRIMARY KEY,
+				url TEXT NOT NULL UNIQUE,
+				kind TEXT NOT NULL CHECK (kind IN ('ics','html','list')),
+				label TEXT NOT NULL,
+				listing TEXT NOT NULL DEFAULT '',
+				category TEXT NOT NULL DEFAULT 'community',
+				town TEXT NOT NULL DEFAULT 'somerset-west',
+				match TEXT NOT NULL DEFAULT '',
+				enabled INTEGER NOT NULL DEFAULT 1,
+				last_checked_at TEXT,
+				last_hash TEXT NOT NULL DEFAULT '',
+				last_status TEXT NOT NULL DEFAULT '',
+				last_changed_at TEXT
+			);
+			INSERT INTO sources_v7(id, url, kind, label, listing, category, town, match, enabled, last_checked_at, last_hash, last_status, last_changed_at)
+				SELECT id, url, kind, label, listing, category, town, match, enabled, last_checked_at, last_hash, last_status, last_changed_at FROM sources;
+			DROP TABLE sources;
+			ALTER TABLE sources_v7 RENAME TO sources;
+			COMMIT;`)
+		if err != nil {
+			_, _ = db.Exec(`ROLLBACK`)
+			return fmt.Errorf("migrate sources to v7: %w", err)
 		}
 	}
 	return nil

@@ -238,7 +238,8 @@ the `TXT @` record by hand in that case.
 Append to `api/sources.json` and redeploy (`seedSources()` upserts by URL on
 start, so editing an entry updates the live row; deleting one does not remove
 it, disable it in the console). `kind` is `ics` for a calendar feed (the good
-case: events arrive structured) or `html` for a page to watch. Give `listing`,
+case: events arrive structured), `html` for a page to watch, or `list` for an
+index page or RSS/Atom feed where only *new links* matter. Give `listing`,
 `category` and `town` so auto-captured events land in the right place. Never
 guess a URL: record the one the organiser actually publishes, and fetch it
 first to see that it answers.
@@ -252,6 +253,31 @@ so they are not offered again unless the admin presses *Forget*. The same
 field is on the console's add and edit forms; a pattern that does not compile
 is refused there and reported as an error on the source by the watcher.
 
+### Recurring series in ICS feeds (2026-09-04)
+
+`RRULE` is expanded: DAILY, WEEKLY (`BYDAY`), MONTHLY (`BYDAY` with an ordinal
+such as `1SU` or `-1FR`, or `BYMONTHDAY`) and YEARLY, with `INTERVAL`, `COUNT`
+and `UNTIL`, minus `EXDATE`s. A series is queued **once**, at its next
+occurrence between yesterday and a year ahead, with the rule spelled out at
+the top of the summary ("Repeats every week on Sunday."), and the source
+status says how many series the feed holds (", 3 recurring"). Override
+instances (`RECURRENCE-ID`) are not queued on their own. A series whose last
+occurrence is in the past yields nothing. The expansion is capped at 5,000
+periods per event so a malformed rule cannot spin.
+
+### `list` sources: aggregators without the noise (2026-09-04)
+
+An `html` source alerts whenever the page's text changes, which for a listing
+site is every check. A `list` source instead extracts the links (RSS/Atom
+items, CDATA-aware, or every `<a href>` on an HTML page, resolved against the
+page address, minus images, mail and script links, first 500) and remembers
+them in `seen_uids` keyed on the link. The first check only learns the page
+("ok, 47 links remembered"); later checks report the links that were not
+there before, title and address, up to 25 per source in the watch email
+("ok, 52 links, 5 new"). `match` applies to title and address, so a Cape Town
+wide feed can be narrowed to `somerset|strand|gordon|helderberg`. Nothing is
+queued as an event; the admin follows the link and adds it if it is worth it.
+
 ### Where the current list came from (2026-09-04)
 
 Every entry was fetched before it went in. What is there and what is not:
@@ -264,7 +290,18 @@ Every entry was fetched before it went in. What is there and what is not:
   track across the province), trailrunning.co.za, the Western Cape Canoe Union,
   BirdLife Overberg and the Mountain Club of SA Cape Town section (a public
   Google Calendar, ~4 MB, hence the 8 MB cap).
-- **Watched pages (38).** Theatres and music (Playhouse, Drama Factory,
+- **List sources (2, added later the same day).** allevents.in's Somerset West
+  RSS and capetownmagazine.com/events with a Helderberg `match`. Probed and
+  dropped: allevents' Strand feed is Timmendorfer Strand in Germany, its
+  Gordon's Bay feed is an empty channel, ShowMe redirects to a directory index.
+- **newgen.co.za and the night shelter (added later the same day).** NewGen
+  church publishes no calendar; its `/connect/` page (recurring gatherings)
+  and home page are watched as `html`. The only homeless shelter in the
+  Helderberg with a public presence is the Somerset West Night Shelter; its
+  site's *Get involved* and home pages are watched, and its two announced
+  fundraisers (Art & Wine Auction, 2 Oct 2026; Golf Day, 3 Dec 2026, both
+  Facebook-only events) went in as seed events.
+- **Watched pages (42).** Theatres and music (Playhouse, Drama Factory,
   Helderberg Nature Reserve concerts, Triggerfish), nature (reserve walks and
   talks, Somerset West Bird Club programme and events, Helderberg Farm),
   camping (CapeNature's Kogelberg page and events page, the Kogel Bay campsite
@@ -274,13 +311,16 @@ Every entry was fetched before it went in. What is there and what is not:
   on the archdiocese site), community (Village Collective what's on, HSFA
   newsletters, helderberg.biz RSS) and the markets and running pages that were
   there before.
-- **Left out on purpose.** Aggregators that change every day (allevents.in,
-  Eventbrite, Quicket, Webtickets, capetownmagazine, Cape Town ETC's feed is
-  news posts, not events) would alert on every check. NG Kerk Gordonsbaai's
-  Google Calendar is all recurring services, which the parser does not expand,
-  so the site's page is watched instead. Facebook-only organisers (Winter
-  Wonderland, Skilpad Theatre, Red Sky Brew, most churches) cannot be watched.
-  Stellenbosch-side estates and Overberg-only outings are outside the area.
+- **Left out on purpose.** Eventbrite, Quicket and Webtickets search pages
+  render nothing without a browser; Cape Town ETC's feed is news posts, not
+  events. (allevents.in and capetownmagazine went in once the `list` kind
+  existed, and NG Kerk Gordonsbaai's Google Calendar can go in now that
+  recurring series expand.) Facebook-only organisers (Winter Wonderland,
+  Skilpad Theatre, Red Sky Brew, most churches) cannot be watched by a server;
+  the groups rota in `docs/facebook.md` is how those get covered by hand.
+  Stellenbosch-side estates and Overberg-only outings are outside the area,
+  and Macassar and Sir Lowry's Pass were dropped from the regional filters
+  on 2026-09-04.
 - **Dead or empty on the day.** `redskybrew.co.za` and `playhousetheatre.co.za`
   do not resolve, `hendon.co.za` is a JavaScript shell, Somerset Mall's site
   renders nothing without a browser, Quicket's search pages likewise.

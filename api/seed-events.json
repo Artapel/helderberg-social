@@ -205,5 +205,32 @@
     "summary": "Bowls event ('Triple Crown') at Helderberg Bowling Club, Somerset West.",
     "cost": "paid",
     "source": "https://allevents.in/somerset+west"
+  },
+  {
+    "id": "night-shelter-art-wine-auction-2026",
+    "title": "Art & Wine Auction for the Somerset West Night Shelter",
+    "date": "2026-10-02",
+    "time": "18:00",
+    "endTime": "22:00",
+    "town": "somerset-west",
+    "category": "community",
+    "listing": "",
+    "summary": "The shelter's sold-out annual fundraiser: art and prestige wines auctioned at Somerset College (Bredell Road, off the R44). Every rand goes to the only family shelter of its kind in the Western Cape, which has housed homeless adults in the Helderberg since 1988 and families with children since 2020.",
+    "cost": "varies",
+    "website": "https://www.facebook.com/events/966693532765841/",
+    "source": "https://www.facebook.com/Somersetwestnightshelter/events"
+  },
+  {
+    "id": "night-shelter-golf-day-2026",
+    "title": "Shelter Golf Day at Strand Golf Club",
+    "date": "2026-12-03",
+    "time": "12:00",
+    "town": "strand",
+    "category": "sport",
+    "listing": "",
+    "summary": "The Somerset West Night Shelter's annual golf day at Strand Golf Course, in aid of the shelter's work with homeless adults and families across the Helderberg. Enter a four-ball or sponsor a hole; details on the shelter's Facebook event.",
+    "cost": "varies",
+    "website": "https://www.facebook.com/events/1753824402254541/",
+    "source": "https://www.facebook.com/Somersetwestnightshelter/events"
   }
 ]

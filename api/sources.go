@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -15,12 +16,21 @@ import (
 
 // The watcher re-checks known sources on a schedule. Feeds (ICS) yield real
 // events that go straight into the moderation queue; plain web pages can only
-// be hashed, so a change produces a "look at this" line for the admin. A
-// feed that covers the whole province can carry a "match" pattern (a
-// case-insensitive regular expression) and then only events whose title,
-// description, location or link matches it are queued; the rest are counted
-// and dropped, and never offered again unless the admin uses Forget. It
-// never publishes anything on its own.
+// be hashed, so a change produces a "look at this" line for the admin; a
+// "list" page (an aggregator's RSS or a what's-on index that changes every
+// day) is read for its links and only links never seen before are reported,
+// so it never cries wolf. A feed that covers the whole province can carry a
+// "match" pattern (a case-insensitive regular expression) and then only
+// events whose title, description, location or link matches it are queued;
+// the rest are counted and dropped, and never offered again unless the admin
+// uses Forget. A recurring series in a feed (a weekly service, a monthly
+// club night) is queued once, at its next occurrence, with the repeat rule
+// written into the summary, rather than once per instance. It never
+// publishes anything on its own.
+
+// sourceKinds are the kinds a source can be; the sources table's CHECK
+// constraint and the console's add form list the same three.
+var sourceKinds = map[string]bool{"ics": true, "html": true, "list": true}
 
 //go:embed sources.json
 var sourcesJSON []byte
@@ -61,7 +71,7 @@ func (a *App) seedSources() error {
 		return fmt.Errorf("sources.json: %w", err)
 	}
 	for _, d := range defs {
-		if d.Kind != "ics" && d.Kind != "html" {
+		if !sourceKinds[d.Kind] {
 			return fmt.Errorf("sources.json: %s has kind %q", d.URL, d.Kind)
 		}
 		if _, err := compileMatch(d.Match); err != nil {
@@ -218,10 +228,18 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 		switch s.kind {
 		case "ics":
 			evs := parseICS(string(body), a.cfg.TZ)
-			added, skipped := 0, 0
+			added, skipped, series := 0, 0, 0
 			for _, ev := range evs {
-				if ev.Start.Before(today.AddDate(0, 0, -1)) || ev.Start.After(today.AddDate(1, 0, 0)) {
+				if ev.RecurrenceID {
+					continue // one changed instance of a series; the series itself is offered
+				}
+				occ := ev.occurrences(today.AddDate(0, 0, -1), today.AddDate(1, 0, 0), 1)
+				if len(occ) == 0 {
 					continue
+				}
+				start := occ[0]
+				if ev.RRule != "" {
+					series++
 				}
 				if filter != nil && !filter.MatchString(ev.Summary+"\n"+ev.Description+"\n"+ev.Location+"\n"+ev.URL) {
 					skipped++
@@ -234,13 +252,17 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 				if n, _ := res.RowsAffected(); n == 0 {
 					continue // already offered to the admin once
 				}
+				summary := ev.Description
+				if rt := repeatText(ev.RRule, a.cfg.TZ); rt != "" {
+					summary = strings.TrimSpace(rt + "\n\n" + summary)
+				}
 				e := Event{
 					Title:    clean(ev.Summary, 120),
-					Date:     ev.Start.Format("2006-01-02"),
+					Date:     start.Format("2006-01-02"),
 					Town:     s.town,
 					Category: s.category,
 					Listing:  s.listing,
-					Summary:  cleanMulti(ev.Description, 800),
+					Summary:  cleanMulti(summary, 800),
 					Cost:     "varies",
 					Source:   s.url,
 					Status:   "pending_review",
@@ -250,13 +272,13 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 					e.Website = w
 				}
 				if !ev.AllDay {
-					e.Time = ev.Start.Format("15:04")
+					e.Time = start.Format("15:04")
 					if !ev.End.IsZero() {
 						e.EndTime = ev.End.Format("15:04")
 					}
 				}
 				if !ev.End.IsZero() {
-					end := ev.End
+					end := start.Add(ev.End.Sub(ev.Start)) // same length as the first instance
 					if ev.AllDay {
 						end = end.AddDate(0, 0, -1) // ICS all-day DTEND is exclusive
 					}
@@ -274,10 +296,47 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 			}
 			newEvents += added
 			status = fmt.Sprintf("ok, %d events in feed, %d new", len(evs), added)
+			if series > 0 {
+				status += fmt.Sprintf(", %d recurring", series)
+			}
 			if filter != nil {
 				status += fmt.Sprintf(", %d outside the filter", skipped)
 			}
 			_, _ = a.db.Exec(`UPDATE sources SET last_checked_at=?, last_status=? WHERE id=?`, now(), status, s.id)
+		case "list":
+			links := extractLinks(body, s.url)
+			first := s.lastHash == "" // nothing remembered yet: learn the page, report nothing
+			fresh := 0
+			var lines []string
+			for _, l := range links {
+				if filter != nil && !filter.MatchString(l.Title+"\n"+l.URL) {
+					continue
+				}
+				res, err := a.db.Exec(`INSERT OR IGNORE INTO seen_uids(source_id, uid, seen_at) VALUES(?,?,?)`, s.id, l.URL, now())
+				if err != nil {
+					continue
+				}
+				if n, _ := res.RowsAffected(); n == 0 {
+					continue
+				}
+				fresh++
+				if !first && len(lines) < 25 {
+					lines = append(lines, fmt.Sprintf("• NEW on %s: %s\n    %s", s.label, l.Title, l.URL))
+				}
+			}
+			switch {
+			case first:
+				status = fmt.Sprintf("ok, %d links remembered", fresh)
+				_, _ = a.db.Exec(`UPDATE sources SET last_checked_at=?, last_status=?, last_hash='seen' WHERE id=?`, now(), status, s.id)
+			case fresh > 0:
+				changed++
+				report = append(report, lines...)
+				status = fmt.Sprintf("ok, %d links, %d new", len(links), fresh)
+				_, _ = a.db.Exec(`UPDATE sources SET last_checked_at=?, last_status=?, last_changed_at=? WHERE id=?`, now(), status, now(), s.id)
+			default:
+				status = fmt.Sprintf("ok, %d links, nothing new", len(links))
+				_, _ = a.db.Exec(`UPDATE sources SET last_checked_at=?, last_status=? WHERE id=?`, now(), status, s.id)
+			}
 		case "html":
 			h := pageHash(body)
 			if s.lastHash != "" && h != s.lastHash {
@@ -302,4 +361,73 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 		}
 	}
 	return summary
+}
+
+/* ---------- link lists ---------- */
+
+// pageLink is one entry of a list source: where it points and what it is called.
+type pageLink struct{ URL, Title string }
+
+var (
+	rssItemRe   = regexp.MustCompile(`(?is)<(item|entry)\b.*?</(item|entry)>`)
+	rssTitleRe  = regexp.MustCompile(`(?is)<title[^>]*>(.*?)</title>`)
+	rssLinkRe   = regexp.MustCompile(`(?is)<link[^>]*>\s*(?:<!\[CDATA\[)?\s*(https?://[^<\]\s]+)`)
+	atomLinkRe  = regexp.MustCompile(`(?is)<link[^>]*href="([^"]+)"`)
+	cdataRe     = regexp.MustCompile(`(?s)<!\[CDATA\[(.*?)\]\]>`)
+	anchorRe    = regexp.MustCompile(`(?is)<a\b[^>]*href="([^"]+)"[^>]*>(.*?)</a>`)
+	linkLimit   = 500
+	skipLinkRe  = regexp.MustCompile(`(?i)^(mailto:|tel:|javascript:)|\.(png|jpe?g|gif|svg|webp|css|js|pdf|ico)(\?|$)`)
+	unwrapCDATA = func(s string) string { return cdataRe.ReplaceAllString(s, "$1") }
+)
+
+// extractLinks reads the links of an RSS/Atom feed (item title + link) or,
+// failing that, every anchor on an HTML page, resolved against the page's
+// address. Order is the page's order; duplicates and non-page links
+// (images, mail, scripts) are dropped.
+func extractLinks(body []byte, base string) []pageLink {
+	s := string(body)
+	seen := map[string]bool{}
+	var out []pageLink
+	add := func(u, title string) {
+		u = strings.TrimSpace(unwrapCDATA(u))
+		if u == "" || strings.HasPrefix(u, "#") || skipLinkRe.MatchString(u) {
+			return
+		}
+		if bu, err := neturl.Parse(base); err == nil {
+			if ru, err := bu.Parse(u); err == nil {
+				ru.Fragment = ""
+				u = ru.String()
+			}
+		}
+		if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+			return
+		}
+		if seen[u] || len(out) >= linkLimit {
+			return
+		}
+		seen[u] = true
+		title = clean(strings.TrimSpace(anyTagRe.ReplaceAllString(unwrapCDATA(title), " ")), 140)
+		if title == "" {
+			title = u
+		}
+		out = append(out, pageLink{URL: u, Title: title})
+	}
+	if items := rssItemRe.FindAllString(s, -1); len(items) > 0 {
+		for _, it := range items {
+			title := ""
+			if m := rssTitleRe.FindStringSubmatch(it); m != nil {
+				title = m[1]
+			}
+			if m := rssLinkRe.FindStringSubmatch(it); m != nil {
+				add(m[1], title)
+			} else if m := atomLinkRe.FindStringSubmatch(it); m != nil {
+				add(m[1], title)
+			}
+		}
+		return out
+	}
+	for _, m := range anchorRe.FindAllStringSubmatch(s, -1) {
+		add(m[1], m[2])
+	}
+	return out
 }
