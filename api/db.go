@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 9
+const schemaVersion = 10
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -57,7 +57,10 @@ var schema = []string{
 		created_at TEXT NOT NULL,
 		verified_at TEXT,
 		decided_at TEXT,
-		ip_hash TEXT NOT NULL DEFAULT ''
+		ip_hash TEXT NOT NULL DEFAULT '',
+		visible_from TEXT NOT NULL DEFAULT '',
+		hidden INTEGER NOT NULL DEFAULT 0,
+		promoted INTEGER NOT NULL DEFAULT 0
 	)`,
 	`CREATE INDEX IF NOT EXISTS events_status_date ON events(status, date)`,
 	`CREATE TABLE IF NOT EXISTS members (
@@ -69,8 +72,42 @@ var schema = []string{
 		verified_at TEXT,
 		last_login_at TEXT,
 		status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
-		ip_hash TEXT NOT NULL DEFAULT ''
+		ip_hash TEXT NOT NULL DEFAULT '',
+		role TEXT NOT NULL DEFAULT 'member',
+		trusted INTEGER NOT NULL DEFAULT 0
 	)`,
+	`CREATE TABLE IF NOT EXISTS promoters (
+		member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+		org TEXT NOT NULL,
+		kind TEXT NOT NULL,
+		website TEXT NOT NULL DEFAULT '',
+		facebook TEXT NOT NULL DEFAULT '',
+		instagram TEXT NOT NULL DEFAULT '',
+		towns TEXT NOT NULL DEFAULT '[]',
+		blurb TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL CHECK (status IN ('pending','approved','declined')),
+		applied_at TEXT NOT NULL,
+		decided_at TEXT,
+		note TEXT NOT NULL DEFAULT ''
+	)`,
+	`CREATE TABLE IF NOT EXISTS posts (
+		id TEXT PRIMARY KEY,
+		member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+		title TEXT NOT NULL,
+		body TEXT NOT NULL,
+		link TEXT NOT NULL DEFAULT '',
+		town TEXT NOT NULL,
+		category TEXT NOT NULL,
+		starts TEXT NOT NULL,
+		ends TEXT NOT NULL,
+		status TEXT NOT NULL CHECK (status IN ('pending_review','approved','rejected')),
+		hidden INTEGER NOT NULL DEFAULT 0,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		decided_at TEXT
+	)`,
+	`CREATE INDEX IF NOT EXISTS posts_member ON posts(member_id)`,
+	`CREATE INDEX IF NOT EXISTS posts_live ON posts(status, hidden, starts, ends)`,
 	`CREATE TABLE IF NOT EXISTS member_identities (
 		provider TEXT NOT NULL,
 		sub TEXT NOT NULL,
@@ -109,7 +146,8 @@ var schema = []string{
 		created_at TEXT NOT NULL,
 		verified_at TEXT,
 		decided_at TEXT,
-		ip_hash TEXT NOT NULL DEFAULT ''
+		ip_hash TEXT NOT NULL DEFAULT '',
+		member_id INTEGER
 	)`,
 	`CREATE TABLE IF NOT EXISTS sources (
 		id INTEGER PRIMARY KEY,
@@ -124,7 +162,8 @@ var schema = []string{
 		last_checked_at TEXT,
 		last_hash TEXT NOT NULL DEFAULT '',
 		last_status TEXT NOT NULL DEFAULT '',
-		last_changed_at TEXT
+		last_changed_at TEXT,
+		member_id INTEGER
 	)`,
 	`CREATE TABLE IF NOT EXISTS seen_uids (source_id INTEGER NOT NULL, uid TEXT NOT NULL, seen_at TEXT NOT NULL, PRIMARY KEY (source_id, uid))`,
 	`CREATE TABLE IF NOT EXISTS tokens_used (jti TEXT PRIMARY KEY, used_at TEXT NOT NULL)`,
@@ -273,6 +312,25 @@ func migrate(db *sql.DB) error {
 			}
 		}
 	}
+	// v10: promoters. Members gain a role and a trust flag, events gain a
+	// show-from date, a hidden switch and a promoted mark, sources and
+	// listing submissions may belong to a member. The new tables (promoters,
+	// posts) come from the base schema list.
+	for _, c := range []struct{ table, col, ddl string }{
+		{"members", "role", `ALTER TABLE members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`},
+		{"members", "trusted", `ALTER TABLE members ADD COLUMN trusted INTEGER NOT NULL DEFAULT 0`},
+		{"events", "visible_from", `ALTER TABLE events ADD COLUMN visible_from TEXT NOT NULL DEFAULT ''`},
+		{"events", "hidden", `ALTER TABLE events ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0`},
+		{"events", "promoted", `ALTER TABLE events ADD COLUMN promoted INTEGER NOT NULL DEFAULT 0`},
+		{"sources", "member_id", `ALTER TABLE sources ADD COLUMN member_id INTEGER`},
+		{"listing_submissions", "member_id", `ALTER TABLE listing_submissions ADD COLUMN member_id INTEGER`},
+	} {
+		if !hasColumn(db, c.table, c.col) {
+			if _, err := db.Exec(c.ddl); err != nil {
+				return fmt.Errorf("migrate %s.%s: %w", c.table, c.col, err)
+			}
+		}
+	}
 	return nil
 }
 
@@ -321,22 +379,32 @@ type Event struct {
 	Website  string `json:"website,omitempty"`
 	Source   string `json:"source,omitempty"`
 	Verified bool   `json:"verified"`
+	Promoted bool   `json:"promoted,omitempty"` // posted by an approved promoter
+	By       string `json:"by,omitempty"`       // the promoter's organisation, filled for the public feed
 	// internal
 	Status        string `json:"-"`
 	Origin        string `json:"-"`
 	SubmitterName string `json:"-"`
 	CreatedAt     string `json:"-"`
 	MemberID      int64  `json:"-"` // 0 when not posted from a member account
+	VisibleFrom   string `json:"-"` // '' or a date before which the event stays off the site
+	Hidden        bool   `json:"-"` // switched off by its promoter; keeps its approval
 }
 
-const eventCols = `id, title, date, end_date, time, end_time, town, category, listing, summary, cost, website, source, status, origin, submitter_name, created_at, COALESCE(member_id, 0)`
+const eventCols = `id, title, date, end_date, time, end_time, town, category, listing, summary, cost, website, source, status, origin, submitter_name, created_at, COALESCE(member_id, 0), visible_from, hidden, promoted`
 
 func scanEvent(rows interface{ Scan(...any) error }) (Event, error) {
 	var e Event
-	err := rows.Scan(&e.ID, &e.Title, &e.Date, &e.EndDate, &e.Time, &e.EndTime, &e.Town, &e.Category, &e.Listing, &e.Summary, &e.Cost, &e.Website, &e.Source, &e.Status, &e.Origin, &e.SubmitterName, &e.CreatedAt, &e.MemberID)
+	var hidden, promoted int
+	err := rows.Scan(&e.ID, &e.Title, &e.Date, &e.EndDate, &e.Time, &e.EndTime, &e.Town, &e.Category, &e.Listing, &e.Summary, &e.Cost, &e.Website, &e.Source, &e.Status, &e.Origin, &e.SubmitterName, &e.CreatedAt, &e.MemberID, &e.VisibleFrom, &hidden, &promoted)
 	e.Verified = e.Status == "approved" && e.Origin == "admin"
+	e.Hidden, e.Promoted = hidden == 1, promoted == 1
 	return e, err
 }
+
+// liveEventsWhere is the part of every public query that a promoter's
+// switches control: not hidden, and past its show-from date.
+const liveEventsWhere = `hidden = 0 AND (visible_from = '' OR visible_from <= ?)`
 
 func (a *App) queryEvents(where string, args ...any) ([]Event, error) {
 	rows, err := a.db.Query(`SELECT `+eventCols+` FROM events WHERE `+where+` ORDER BY date, time, title`, args...)
@@ -359,7 +427,7 @@ func (a *App) queryEvents(where string, args ...any) ([]Event, error) {
 func (a *App) approvedEvents(from time.Time, days int) ([]Event, error) {
 	f := from.Format("2006-01-02")
 	to := from.AddDate(0, 0, days).Format("2006-01-02")
-	return a.queryEvents(`status = 'approved' AND (CASE WHEN end_date = '' THEN date ELSE end_date END) >= ? AND date <= ?`, f, to)
+	return a.queryEvents(`status = 'approved' AND `+liveEventsWhere+` AND (CASE WHEN end_date = '' THEN date ELSE end_date END) >= ? AND date <= ?`, f, f, to)
 }
 
 func (a *App) insertEvent(e Event, ipHash string, submitterEmail string, sourceID *int64) error {
@@ -367,8 +435,19 @@ func (a *App) insertEvent(e Event, ipHash string, submitterEmail string, sourceI
 	if e.MemberID > 0 {
 		member = &e.MemberID
 	}
-	_, err := a.db.Exec(`INSERT INTO events(id, title, date, end_date, time, end_time, town, category, listing, summary, cost, website, source, status, origin, submitter_name, created_at, member_id, submitter_email, source_id, ip_hash) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		e.ID, e.Title, e.Date, e.EndDate, e.Time, e.EndTime, e.Town, e.Category, e.Listing, e.Summary, e.Cost, e.Website, e.Source, e.Status, e.Origin, e.SubmitterName, now(), member, submitterEmail, sourceID, ipHash)
+	promoted, hidden := 0, 0
+	if e.Promoted {
+		promoted = 1
+	}
+	if e.Hidden {
+		hidden = 1
+	}
+	var decided any
+	if e.Status == "approved" || e.Status == "rejected" {
+		decided = now()
+	}
+	_, err := a.db.Exec(`INSERT INTO events(id, title, date, end_date, time, end_time, town, category, listing, summary, cost, website, source, status, origin, submitter_name, created_at, member_id, submitter_email, source_id, ip_hash, visible_from, hidden, promoted, decided_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		e.ID, e.Title, e.Date, e.EndDate, e.Time, e.EndTime, e.Town, e.Category, e.Listing, e.Summary, e.Cost, e.Website, e.Source, e.Status, e.Origin, e.SubmitterName, now(), member, submitterEmail, sourceID, ipHash, e.VisibleFrom, hidden, promoted, decided)
 	return err
 }
 

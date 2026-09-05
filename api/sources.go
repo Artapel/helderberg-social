@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -130,10 +131,18 @@ type sourceRow struct {
 	ID                                int64
 	URL, Kind, Label, Status, Checked string
 	Changed                           string
+	MemberID                          int64  // a promoter's connected calendar
+	Org                               string // its organisation, for the console
+	Enabled                           bool
 }
 
 func (a *App) sourceRows() ([]sourceRow, error) {
-	rows, err := a.db.Query(`SELECT id, url, kind, label, COALESCE(last_status,''), COALESCE(last_checked_at,''), COALESCE(last_changed_at,'') FROM sources WHERE enabled = 1 ORDER BY label`)
+	return a.sourceRowsWhere(`s.enabled = 1`)
+}
+
+// sourceRowsWhere lists sources with their promoter's organisation, if any.
+func (a *App) sourceRowsWhere(where string, args ...any) ([]sourceRow, error) {
+	rows, err := a.db.Query(`SELECT s.id, s.url, s.kind, s.label, COALESCE(s.last_status,''), COALESCE(s.last_checked_at,''), COALESCE(s.last_changed_at,''), COALESCE(s.member_id, 0), COALESCE(p.org, ''), s.enabled FROM sources s LEFT JOIN promoters p ON p.member_id = s.member_id WHERE `+where+` ORDER BY s.label`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -141,9 +150,11 @@ func (a *App) sourceRows() ([]sourceRow, error) {
 	var out []sourceRow
 	for rows.Next() {
 		var s sourceRow
-		if err := rows.Scan(&s.ID, &s.URL, &s.Kind, &s.Label, &s.Status, &s.Checked, &s.Changed); err != nil {
+		var enabled int
+		if err := rows.Scan(&s.ID, &s.URL, &s.Kind, &s.Label, &s.Status, &s.Checked, &s.Changed, &s.MemberID, &s.Org, &enabled); err != nil {
 			return nil, err
 		}
+		s.Enabled = enabled == 1
 		out = append(out, s)
 	}
 	return out, rows.Err()
@@ -193,7 +204,18 @@ func retryableFetch(err error) bool {
 }
 
 func (a *App) fetchOnce(url string) ([]byte, error) {
-	client := &http.Client{Timeout: 25 * time.Second}
+	// A redirect may not lead somewhere private: a promoter's calendar
+	// address is checked when it is added (publicCalendarURL), and this
+	// keeps a later redirect from undoing that check.
+	client := &http.Client{Timeout: 25 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 5 {
+			return errors.New("too many redirects")
+		}
+		if msg := privateTarget(req.URL); msg != "" {
+			return errors.New("redirect refused: " + msg)
+		}
+		return nil
+	}}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -229,7 +251,7 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 		return "A check is already running."
 	}
 	defer a.watchMu.Unlock()
-	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, match, last_hash FROM sources WHERE `+where, args...)
+	rows, err := a.db.Query(`SELECT id, url, kind, label, listing, category, town, match, last_hash, COALESCE(member_id, 0) FROM sources WHERE `+where, args...)
 	if err != nil {
 		a.logf("watch: %v", err)
 		return "error: " + err.Error()
@@ -237,11 +259,12 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 	type src struct {
 		id                                                         int64
 		url, kind, label, listing, category, town, match, lastHash string
+		memberID                                                   int64
 	}
 	var list []src
 	for rows.Next() {
 		var s src
-		if err := rows.Scan(&s.id, &s.url, &s.kind, &s.label, &s.listing, &s.category, &s.town, &s.match, &s.lastHash); err == nil {
+		if err := rows.Scan(&s.id, &s.url, &s.kind, &s.label, &s.listing, &s.category, &s.town, &s.match, &s.lastHash, &s.memberID); err == nil {
 			list = append(list, s)
 		}
 	}
@@ -327,8 +350,20 @@ func (a *App) runWatchWhere(reason, where string, args ...any) string {
 				}
 				sid := s.id
 				e.ID = a.uniqueEventID(slugify(e.Title) + "-" + e.Date)
+				if s.memberID != 0 {
+					// A promoter's connected calendar: the event is theirs,
+					// and skips the queue only when they are trusted.
+					if m := a.memberByID(s.memberID); m != nil && m.IsPromoter() {
+						a.stampPromoterEvent(&e, m)
+						e.Origin = "auto"
+					}
+				}
 				if err := a.insertEvent(e, "", "", &sid); err == nil {
 					added++
+					if e.Status == "approved" {
+						report = append(report, fmt.Sprintf("• PUBLISHED from %s (trusted promoter): %s on %s", s.label, e.Title, e.Date))
+						continue
+					}
 					report = append(report, fmt.Sprintf("• NEW from %s: %s on %s\n    approve %s\n    reject  %s", s.label, e.Title, e.Date,
 						a.moderateURL("event", e.ID, "approve"), a.moderateURL("event", e.ID, "reject")))
 				}

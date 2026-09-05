@@ -55,8 +55,13 @@ type Member struct {
 	Status      string // active | disabled
 	IPHash      string
 	Logins      string // comma-separated providers linked ("google,microsoft"); "" when none
+	Role        string // member | promoter (an approved promoter)
+	Trusted     bool   // promoter whose items publish without a check
 	Events      int    // filled by the console list
 }
+
+// IsPromoter is true once the admin has approved the promoter application.
+func (m *Member) IsPromoter() bool { return m.Role == "promoter" }
 
 // HasPassword is false for a member who only ever signed in through a provider.
 func (m *Member) HasPassword() bool { return m.PwHash != "" }
@@ -224,14 +229,15 @@ func (l *lockout) clear(key string) {
 
 /* ---------- storage ---------- */
 
-const memberCols = `id, email, name, pw_hash, created_at, COALESCE(verified_at,''), COALESCE(last_login_at,''), status, ip_hash, (SELECT COALESCE(group_concat(provider, ','), '') FROM member_identities mi WHERE mi.member_id = members.id)`
+const memberCols = `id, email, name, pw_hash, created_at, COALESCE(verified_at,''), COALESCE(last_login_at,''), status, ip_hash, (SELECT COALESCE(group_concat(provider, ','), '') FROM member_identities mi WHERE mi.member_id = members.id), role, trusted`
 
 func scanMember(row interface{ Scan(...any) error }) (*Member, error) {
 	var m Member
-	err := row.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash, &m.Logins)
-	if err != nil {
+	var trusted int
+	if err := row.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash, &m.Logins, &m.Role, &trusted); err != nil {
 		return nil, err
 	}
+	m.Trusted = trusted == 1
 	return &m, nil
 }
 
@@ -260,7 +266,9 @@ func (a *App) members(where string, limit, offset int, args ...any) []Member {
 	var out []Member
 	for rows.Next() {
 		var m Member
-		if rows.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash, &m.Logins, &m.Events) == nil {
+		var trusted int
+		if rows.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash, &m.Logins, &m.Role, &trusted, &m.Events) == nil {
+			m.Trusted = trusted == 1
 			out = append(out, m)
 		}
 	}
@@ -342,7 +350,11 @@ func (a *App) memberCSRFOK(r *http.Request, s *memberSession) bool {
 	if r.Method != http.MethodPost {
 		return true
 	}
-	_ = r.ParseForm()
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		_ = r.ParseMultipartForm(promoterImportBytes) // the import upload; PostForm gets the text fields
+	} else {
+		_ = r.ParseForm()
+	}
 	return subtle.ConstantTimeCompare([]byte(r.PostForm.Get("csrf")), []byte(a.memberCSRF(s))) == 1
 }
 
@@ -396,7 +408,7 @@ func (a *App) renderAccount(w http.ResponseWriter, r *http.Request, status int, 
 	if s != nil {
 		v.Member = s.Member
 		v.CSRF = a.memberCSRF(s)
-		v.Pending = a.count(`SELECT COUNT(*) FROM events WHERE member_id = ? AND status = 'pending_review'`, s.MemberID)
+		v.Pending = a.count(`SELECT COUNT(*) FROM events WHERE member_id = ? AND status = 'pending_review'`, s.MemberID) + a.count(`SELECT COUNT(*) FROM posts WHERE member_id = ? AND status = 'pending_review'`, s.MemberID)
 	}
 	v.Msg = clean(r.URL.Query().Get("msg"), 300)
 	v.Err = r.URL.Query().Get("err") == "1"
@@ -451,6 +463,7 @@ func (a *App) accountRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /account/events/edit", a.requireMember(a.memberEventForm))
 	mux.HandleFunc("POST /account/events/save", a.requireMember(a.memberEventSave))
 	mux.HandleFunc("POST /account/events/withdraw", a.requireMember(a.memberEventWithdraw))
+	a.promoterRoutes(mux)
 	mux.HandleFunc("GET /account/settings", a.requireMember(a.memberSettingsPage))
 	mux.HandleFunc("POST /account/settings", a.requireMember(a.memberSettingsPost))
 	mux.HandleFunc("POST /account/logout", a.requireMember(a.memberLogout))
@@ -736,33 +749,19 @@ func memberStatusText(s string) string {
 
 func (a *App) myEventsPage(w http.ResponseWriter, r *http.Request) {
 	s := memberOf(r)
-	evs, _ := a.queryEvents(`member_id = ?`, s.MemberID)
-	var rows []memberEventRow
-	today := a.localDay(time.Now())
-	for i := len(evs) - 1; i >= 0; i-- { // newest date first
-		e := evs[i]
-		row := memberEventRow{Event: e, StatusText: memberStatusText(e.Status), Editable: true}
-		if e.Status == "approved" {
-			row.Live = a.cfg.SiteURL + "/events.html?ev=" + url.QueryEscape(e.ID)
-		}
-		if end := e.EndDate; (end != "" && end < today) || (end == "" && e.Date < today) {
-			row.StatusText += " · past"
-			row.Editable = false
-		}
-		rows = append(rows, row)
-	}
-	a.renderAccount(w, r, 200, "acc_events", "My events", map[string]any{"Events": rows})
+	a.renderAccount(w, r, 200, "acc_events", "My events", map[string]any{"Events": a.memberEventRows(s.MemberID)})
 }
 
 type memberEventFormView struct {
 	E                  Event
 	New                bool
 	Towns, Cats, Costs []string
+	Promoter, Trusted  bool // show the schedule field; say it publishes at once
 }
 
 func (a *App) memberEventForm(w http.ResponseWriter, r *http.Request) {
 	s := memberOf(r)
-	f := memberEventFormView{New: true, Towns: sortedKeys(towns), Cats: sortedKeys(categories), Costs: []string{"free", "paid", "membership", "donation", "varies"}}
+	f := memberEventFormView{New: true, Towns: sortedKeys(towns), Cats: sortedKeys(categories), Costs: []string{"free", "paid", "membership", "donation", "varies"}, Promoter: s.Member.IsPromoter(), Trusted: s.Member.IsPromoter() && s.Member.Trusted}
 	if id := r.URL.Query().Get("id"); id != "" {
 		evs, err := a.queryEvents(`id = ? AND member_id = ?`, id, s.MemberID)
 		if err != nil || len(evs) != 1 {
@@ -812,27 +811,51 @@ func (a *App) memberEventSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	e.Source = e.Website
+	// Promoters may schedule: the event stays off the site until this day.
+	if s.Member.IsPromoter() {
+		if vf := strings.TrimSpace(f.Get("visible_from")); vf != "" {
+			d, ok := validDate(vf)
+			if !ok || d.After(mustDate(e.Date)) {
+				a.accountBack(w, r, back, "The show-from date must be a real day on or before the event.", true)
+				return
+			}
+			e.VisibleFrom = d.Format("2006-01-02")
+		}
+	}
+	limit := memberEventsDay
+	if s.Member.IsPromoter() {
+		limit = promoterEventsDay
+	}
 	if id == "" {
-		if a.count(`SELECT COUNT(*) FROM events WHERE member_id = ? AND created_at > ?`, s.MemberID, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339)) >= memberEventsDay {
-			a.accountBack(w, r, "/account", fmt.Sprintf("You have posted %d events in the last day, which is the limit. Try again tomorrow.", memberEventsDay), true)
+		if a.count(`SELECT COUNT(*) FROM events WHERE member_id = ? AND created_at > ?`, s.MemberID, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339)) >= limit {
+			a.accountBack(w, r, "/account", fmt.Sprintf("You have posted %d events in the last day, which is the limit. Try again tomorrow.", limit), true)
 			return
 		}
 		e.ID = a.uniqueEventID(slugify(e.Title) + "-" + e.Date)
-		e.Status, e.Origin, e.SubmitterName, e.MemberID = "pending_review", "user", s.Member.Name, s.MemberID
+		a.stampPromoterEvent(&e, s.Member)
 		if err := a.insertEvent(e, ipTag(ipOf(r)), s.Member.Email, nil); err != nil {
 			a.logf("member event insert: %v", err)
 			a.accountBack(w, r, back, "Could not save the event. Please try again.", true)
 			return
 		}
 		_, _ = a.db.Exec(`UPDATE events SET verified_at = ? WHERE id = ?`, now(), e.ID)
-		a.notifyAdminEvent(e.ID)
 		a.audit(r, "member.event_new", e.ID, fmt.Sprint(s.MemberID))
-		a.accountBack(w, r, "/account", "Thanks! Your event is in the queue. A person checks every event before it goes on the site, usually within a day.", false)
+		if e.Status == "approved" {
+			a.accountBack(w, r, "/account", "Published. "+scheduleNote(e.VisibleFrom), false)
+			return
+		}
+		a.notifyAdminEvent(e.ID)
+		a.accountBack(w, r, "/account", "Thanks! Your event is in the queue. A person checks every event before it goes on the site, usually within a day. "+scheduleNote(e.VisibleFrom), false)
 		return
 	}
-	// Editing: whatever the state was, the new text needs a fresh look.
-	res, err := a.db.Exec(`UPDATE events SET title=?, date=?, end_date=?, time=?, end_time=?, town=?, category=?, summary=?, cost=?, website=?, source=?, status='pending_review', decided_at=NULL WHERE id=? AND member_id=?`,
-		e.Title, e.Date, e.EndDate, e.Time, e.EndTime, e.Town, e.Category, e.Summary, e.Cost, e.Website, e.Source, id, s.MemberID)
+	// Editing: whatever the state was, the new text needs a fresh look,
+	// unless the member is a trusted promoter.
+	status, decided := "pending_review", any(nil)
+	if s.Member.IsPromoter() && s.Member.Trusted {
+		status, decided = "approved", now()
+	}
+	res, err := a.db.Exec(`UPDATE events SET title=?, date=?, end_date=?, time=?, end_time=?, town=?, category=?, summary=?, cost=?, website=?, source=?, visible_from=?, status=?, decided_at=? WHERE id=? AND member_id=?`,
+		e.Title, e.Date, e.EndDate, e.Time, e.EndTime, e.Town, e.Category, e.Summary, e.Cost, e.Website, e.Source, e.VisibleFrom, status, decided, id, s.MemberID)
 	if err != nil {
 		a.accountBack(w, r, back, "Could not save the changes. Please try again.", true)
 		return
@@ -841,10 +864,21 @@ func (a *App) memberEventSave(w http.ResponseWriter, r *http.Request) {
 		a.accountBack(w, r, "/account", "That event is not one of yours.", true)
 		return
 	}
+	a.audit(r, "member.event_edit", id, fmt.Sprint(s.MemberID))
+	if status == "approved" {
+		a.accountBack(w, r, "/account", "Saved and live. "+scheduleNote(e.VisibleFrom), false)
+		return
+	}
 	a.fbCancelRef("event", id)
 	a.notifyAdminEvent(id)
-	a.audit(r, "member.event_edit", id, fmt.Sprint(s.MemberID))
-	a.accountBack(w, r, "/account", "Saved. The updated event goes back in the queue for a quick check before it shows again.", false)
+	a.accountBack(w, r, "/account", "Saved. The updated event goes back in the queue for a quick check before it shows again. "+scheduleNote(e.VisibleFrom), false)
+}
+
+func scheduleNote(visibleFrom string) string {
+	if visibleFrom == "" {
+		return ""
+	}
+	return "It shows on the site from " + fmtDate(visibleFrom) + "."
 }
 
 // eventProblem validates the shared event fields (also used by the console)

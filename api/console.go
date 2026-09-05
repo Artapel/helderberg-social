@@ -27,7 +27,7 @@ type navItem struct{ Path, Label, Icon string }
 
 var consoleNav = []navItem{
 	{"/admin", "Dashboard", "◧"}, {"/admin/queue", "Queue", "☐"}, {"/admin/events", "Events", "▤"},
-	{"/admin/listings", "Listings", "▥"}, {"/admin/members", "Members", "☺"}, {"/admin/subscribers", "Subscribers", "✉"}, {"/admin/digests", "Digests", "⏰"},
+	{"/admin/listings", "Listings", "▥"}, {"/admin/members", "Members", "☺"}, {"/admin/promoters", "Promoters", "★"}, {"/admin/subscribers", "Subscribers", "✉"}, {"/admin/digests", "Digests", "⏰"},
 	{"/admin/facebook", "Facebook", "f"}, {"/admin/sources", "Sources", "⇅"}, {"/admin/analytics", "Analytics", "▲"}, {"/admin/logs", "Logs", "≡"},
 	{"/admin/security", "Security", "⚿"}, {"/admin/settings", "Settings", "⚙"}, {"/admin/system", "System", "▣"},
 }
@@ -63,6 +63,7 @@ func (a *App) registerConsole(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/listings", a.requireAdmin(a.listingsPage))
 	mux.HandleFunc("GET /admin/members", a.requireAdmin(a.membersPage))
 	mux.HandleFunc("GET /admin/members/view", a.requireAdmin(a.memberViewPage))
+	mux.HandleFunc("GET /admin/promoters", a.requireAdmin(a.promotersPage))
 	mux.HandleFunc("GET /admin/subscribers", a.requireAdmin(a.subscribersPage))
 	mux.HandleFunc("GET /admin/subscribers/edit", a.requireAdmin(a.subscriberEditPage))
 	mux.HandleFunc("GET /admin/digests", a.requireAdmin(a.digestsPage))
@@ -99,7 +100,7 @@ func (a *App) renderConsole(w http.ResponseWriter, r *http.Request, name, title 
 	}
 	v.Msg = clean(r.URL.Query().Get("msg"), 300)
 	v.Err = r.URL.Query().Get("err") == "1"
-	v.Pending = a.count(`SELECT COUNT(*) FROM events WHERE status='pending_review'`) + a.count(`SELECT COUNT(*) FROM listing_submissions WHERE status='pending_review'`)
+	v.Pending = a.count(`SELECT COUNT(*) FROM events WHERE status='pending_review'`) + a.count(`SELECT COUNT(*) FROM listing_submissions WHERE status='pending_review'`) + a.count(`SELECT COUNT(*) FROM posts WHERE status='pending_review'`) + a.count(`SELECT COUNT(*) FROM promoters WHERE status='pending'`)
 	var buf bytes.Buffer
 	if err := a.ctmpl.ExecuteTemplate(&buf, name, map[string]any{"D": data, "CSRF": v.CSRF, "V": v}); err != nil {
 		a.logf("console template %s: %v", name, err)
@@ -149,6 +150,7 @@ func pageOf(r *http.Request) (int, int) {
 
 type dashData struct {
 	PendingEvents, PendingListings, Upcoming, Subs, SubsPending, SourcesOn, Sources int
+	PendingPosts, PendingPromoters, Promoters, LivePosts                            int
 	Members, MembersPending                                                         int
 	MailDay, MailFail, ReqToday, ErrToday, PVToday, UniqToday, Backup, Sessions     int
 	Uptime, LastDaily, LastWeekly, LastWatch, Enrolled                              string
@@ -181,35 +183,39 @@ func (a *App) dashboard(w http.ResponseWriter, r *http.Request) {
 	a.flushStats()
 	today := a.localDay(time.Now())
 	d := dashData{
-		PendingEvents:   a.count(`SELECT COUNT(*) FROM events WHERE status='pending_review'`),
-		PendingListings: a.count(`SELECT COUNT(*) FROM listing_submissions WHERE status='pending_review'`),
-		Upcoming:        a.count(`SELECT COUNT(*) FROM events WHERE status='approved' AND (CASE WHEN end_date='' THEN date ELSE end_date END) >= ?`, today),
-		Subs:            a.count(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NOT NULL`),
-		SubsPending:     a.count(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NULL`),
-		Members:         a.count(`SELECT COUNT(*) FROM members WHERE verified_at IS NOT NULL`),
-		MembersPending:  a.count(`SELECT COUNT(*) FROM members WHERE verified_at IS NULL`),
-		SourcesOn:       a.count(`SELECT COUNT(*) FROM sources WHERE enabled=1`),
-		Sources:         a.count(`SELECT COUNT(*) FROM sources`),
-		MailDay:         a.count(`SELECT COUNT(*) FROM mail_log WHERE sent_at > ?`, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339)),
-		MailFail:        a.count(`SELECT COUNT(*) FROM mail_log WHERE ok=0 AND sent_at > ?`, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339)),
-		ReqToday:        a.count(`SELECT COALESCE(SUM(n),0) FROM req_stats WHERE day=?`, today),
-		ErrToday:        a.count(`SELECT COALESCE(SUM(n),0) FROM req_stats WHERE day=? AND status>=400`, today),
-		PVToday:         a.count(`SELECT COALESCE(SUM(views),0) FROM pageviews WHERE day=?`, today),
-		UniqToday:       a.count(`SELECT COUNT(DISTINCT iph) FROM pv_uniques WHERE day=?`, today),
-		Backup:          a.backupCodesLeft(),
-		Sessions:        len(a.sessions("")),
-		Uptime:          fmtDuration(time.Since(a.stats.start)),
-		LastDaily:       a.metaGet("last:digest:daily"),
-		LastWeekly:      a.metaGet("last:digest:weekly"),
-		LastWatch:       a.metaGet("last:watch"),
-		Enrolled:        a.metaGet("totp:enrolled_at"),
-		PV:              a.pageviewSeries(14),
-		Audit:           a.auditRows("1=1", 10),
-		Maintenance:     a.settingBool("maintenance"),
-		Announcement:    a.settingBool("announcement_on"),
-		FBOn:            a.fbEnabled(),
-		FBQueued:        a.count(`SELECT COUNT(*) FROM fb_posts WHERE status='queued'`),
-		FBFailed:        a.count(`SELECT COUNT(*) FROM fb_posts WHERE status='failed'`),
+		PendingEvents:    a.count(`SELECT COUNT(*) FROM events WHERE status='pending_review'`),
+		PendingListings:  a.count(`SELECT COUNT(*) FROM listing_submissions WHERE status='pending_review'`),
+		PendingPosts:     a.count(`SELECT COUNT(*) FROM posts WHERE status='pending_review'`),
+		PendingPromoters: a.count(`SELECT COUNT(*) FROM promoters WHERE status='pending'`),
+		Promoters:        a.count(`SELECT COUNT(*) FROM promoters WHERE status='approved'`),
+		LivePosts:        a.count(`SELECT COUNT(*) FROM posts WHERE status='approved' AND hidden=0 AND starts <= ? AND ends >= ?`, today, today),
+		Upcoming:         a.count(`SELECT COUNT(*) FROM events WHERE status='approved' AND (CASE WHEN end_date='' THEN date ELSE end_date END) >= ?`, today),
+		Subs:             a.count(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NOT NULL`),
+		SubsPending:      a.count(`SELECT COUNT(*) FROM subscribers WHERE confirmed_at IS NULL`),
+		Members:          a.count(`SELECT COUNT(*) FROM members WHERE verified_at IS NOT NULL`),
+		MembersPending:   a.count(`SELECT COUNT(*) FROM members WHERE verified_at IS NULL`),
+		SourcesOn:        a.count(`SELECT COUNT(*) FROM sources WHERE enabled=1`),
+		Sources:          a.count(`SELECT COUNT(*) FROM sources`),
+		MailDay:          a.count(`SELECT COUNT(*) FROM mail_log WHERE sent_at > ?`, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339)),
+		MailFail:         a.count(`SELECT COUNT(*) FROM mail_log WHERE ok=0 AND sent_at > ?`, time.Now().UTC().Add(-24*time.Hour).Format(time.RFC3339)),
+		ReqToday:         a.count(`SELECT COALESCE(SUM(n),0) FROM req_stats WHERE day=?`, today),
+		ErrToday:         a.count(`SELECT COALESCE(SUM(n),0) FROM req_stats WHERE day=? AND status>=400`, today),
+		PVToday:          a.count(`SELECT COALESCE(SUM(views),0) FROM pageviews WHERE day=?`, today),
+		UniqToday:        a.count(`SELECT COUNT(DISTINCT iph) FROM pv_uniques WHERE day=?`, today),
+		Backup:           a.backupCodesLeft(),
+		Sessions:         len(a.sessions("")),
+		Uptime:           fmtDuration(time.Since(a.stats.start)),
+		LastDaily:        a.metaGet("last:digest:daily"),
+		LastWeekly:       a.metaGet("last:digest:weekly"),
+		LastWatch:        a.metaGet("last:watch"),
+		Enrolled:         a.metaGet("totp:enrolled_at"),
+		PV:               a.pageviewSeries(14),
+		Audit:            a.auditRows("1=1", 10),
+		Maintenance:      a.settingBool("maintenance"),
+		Announcement:     a.settingBool("announcement_on"),
+		FBOn:             a.fbEnabled(),
+		FBQueued:         a.count(`SELECT COUNT(*) FROM fb_posts WHERE status='queued'`),
+		FBFailed:         a.count(`SELECT COUNT(*) FROM fb_posts WHERE status='failed'`),
 	}
 	a.renderConsole(w, r, "p_dashboard", "Dashboard", d)
 }
@@ -231,15 +237,40 @@ func fmtDuration(d time.Duration) string {
 /* ---------- queue ---------- */
 
 type queueData struct {
-	Events   []Event
-	Listings []listingSub
+	Events     []Event
+	Listings   []listingSub
+	Posts      []postRow
+	Applicants []Promoter
 }
 
 func (a *App) queuePage(w http.ResponseWriter, r *http.Request) {
 	var d queueData
 	d.Events, _ = a.queryEvents(`status = 'pending_review'`)
 	d.Listings, _ = a.listingSubs(`status = 'pending_review'`)
+	d.Posts = a.postRows(`status = 'pending_review'`)
+	d.Applicants = a.promoters(`p.status = 'pending'`)
 	a.renderConsole(w, r, "p_queue", "Moderation queue", d)
+}
+
+type promotersData struct {
+	Pending, Approved, Declined []Promoter
+	Posts                       []postRow
+	Status                      string
+}
+
+func (a *App) promotersPage(w http.ResponseWriter, r *http.Request) {
+	d := promotersData{Status: r.URL.Query().Get("posts")}
+	d.Pending = a.promoters(`p.status = 'pending'`)
+	d.Approved = a.promoters(`p.status = 'approved'`)
+	d.Declined = a.promoters(`p.status = 'declined'`)
+	switch d.Status {
+	case "pending_review", "approved", "rejected":
+		d.Posts = a.postRows(`status = ?`, d.Status)
+	default:
+		d.Status = ""
+		d.Posts = a.postRows(`1 = 1`)
+	}
+	a.renderConsole(w, r, "p_promoters", "Promoters", d)
 }
 
 // moderateFromMail is the approve/reject link in the notification email.
@@ -588,6 +619,7 @@ type sourceFull struct {
 	Enabled                                          bool
 	Checked, Hash, Status, Changed                   string
 	Events                                           int
+	Org                                              string // set when a promoter connected it
 }
 
 type sourcesData struct {
@@ -601,12 +633,12 @@ type sourcesData struct {
 
 func (a *App) sourcesPage(w http.ResponseWriter, r *http.Request) {
 	d := sourcesData{Kinds: []string{"ics", "html", "list"}, Towns: sortedKeys(towns), Cats: sortedKeys(categories), LastWatch: a.metaGet("last:watch"), On: a.settingBool("watch_on"), Interval: a.settingInt("watch_minutes")}
-	rows, err := a.db.Query(`SELECT s.id, s.url, s.kind, s.label, s.listing, s.category, s.town, s.match, s.enabled, COALESCE(s.last_checked_at,''), s.last_hash, s.last_status, COALESCE(s.last_changed_at,''), (SELECT COUNT(*) FROM events e WHERE e.source_id = s.id) FROM sources s ORDER BY s.enabled DESC, s.label`)
+	rows, err := a.db.Query(`SELECT s.id, s.url, s.kind, s.label, s.listing, s.category, s.town, s.match, s.enabled, COALESCE(s.last_checked_at,''), s.last_hash, s.last_status, COALESCE(s.last_changed_at,''), (SELECT COUNT(*) FROM events e WHERE e.source_id = s.id), COALESCE((SELECT org FROM promoters p WHERE p.member_id = s.member_id), '') FROM sources s ORDER BY s.enabled DESC, s.label`)
 	if err == nil {
 		for rows.Next() {
 			var s sourceFull
 			var en int
-			if rows.Scan(&s.ID, &s.URL, &s.Kind, &s.Label, &s.Listing, &s.Category, &s.Town, &s.Match, &en, &s.Checked, &s.Hash, &s.Status, &s.Changed, &s.Events) == nil {
+			if rows.Scan(&s.ID, &s.URL, &s.Kind, &s.Label, &s.Listing, &s.Category, &s.Town, &s.Match, &en, &s.Checked, &s.Hash, &s.Status, &s.Changed, &s.Events, &s.Org) == nil {
 				s.Enabled = en == 1
 				if len(s.Hash) > 10 {
 					s.Hash = s.Hash[:10]
@@ -1047,6 +1079,21 @@ func (a *App) consoleAction(w http.ResponseWriter, r *http.Request) {
 	case "accept", "reject-listing":
 		msg, err = a.decide("listing", id, strings.TrimSuffix(action, "-listing"))
 		a.audit(r, "listing."+strings.TrimSuffix(action, "-listing"), id, "")
+	case "post-approve", "post-reject":
+		msg, err = a.decide("post", id, strings.TrimPrefix(action, "post-"))
+		a.audit(r, "post."+strings.TrimPrefix(action, "post-"), id, "")
+	case "post-unapprove":
+		_, err = a.db.Exec(`UPDATE posts SET status = 'pending_review', decided_at = NULL WHERE id = ?`, id)
+		a.audit(r, "post.unapprove", id, "")
+		msg = "Post pulled back into the queue."
+	case "post-delete":
+		_, err = a.db.Exec(`DELETE FROM posts WHERE id = ?`, id)
+		a.audit(r, "post.delete", id, "")
+		msg = "Post deleted."
+	case "promoter-approve", "promoter-decline", "promoter-revoke", "promoter-trust", "promoter-untrust":
+		var mid int64
+		fmt.Sscan(id, &mid)
+		msg, err = a.promoterDecide(r, mid, action)
 	// events
 	case "event-save":
 		msg, err = a.saveEvent(r)

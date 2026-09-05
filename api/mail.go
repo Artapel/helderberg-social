@@ -166,6 +166,6 @@ func (f *fileMailer) Send(m Message) error {
 	if err := os.MkdirAll(f.dir, 0o755); err != nil {
 		return err
 	}
-	name := fmt.Sprintf("%s-%s-%s.eml", time.Now().UTC().Format("20060102T150405"), m.Kind, emailHash(m.To))
+	name := fmt.Sprintf("%s-%s-%s.eml", time.Now().UTC().Format("20060102T150405.000000000"), m.Kind, emailHash(m.To))
 	return os.WriteFile(filepath.Join(f.dir, name), raw, 0o600)
 }

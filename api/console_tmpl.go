@@ -34,6 +34,21 @@ var consoleFuncs = template.FuncMap{
 		return s
 	},
 	"hasPrefix": strings.HasPrefix,
+	"has": func(list []string, v string) bool {
+		for _, x := range list {
+			if x == v {
+				return true
+			}
+		}
+		return false
+	},
+	"townList": func(keys []string) []string {
+		out := make([]string, 0, len(keys))
+		for _, k := range keys {
+			out = append(out, townName(k))
+		}
+		return out
+	},
 	"list":      func(v ...string) []string { return v },
 	"dict": func(kv ...any) map[string]any {
 		m := map[string]any{}
@@ -167,6 +182,9 @@ const consoleSrc = `
 <div class="cards">
 <a class="card{{if $d.PendingEvents}} hot{{end}}" href="/admin/queue" style="text-decoration:none;color:inherit"><b>{{$d.PendingEvents}}</b><small>events to moderate</small></a>
 <a class="card{{if $d.PendingListings}} hot{{end}}" href="/admin/queue" style="text-decoration:none;color:inherit"><b>{{$d.PendingListings}}</b><small>listings to moderate</small></a>
+<a class="card{{if $d.PendingPosts}} hot{{end}}" href="/admin/queue" style="text-decoration:none;color:inherit"><b>{{$d.PendingPosts}}</b><small>posts to moderate</small></a>
+<a class="card{{if $d.PendingPromoters}} hot{{end}}" href="/admin/promoters" style="text-decoration:none;color:inherit"><b>{{$d.PendingPromoters}}</b><small>promoter applications</small></a>
+<a class="card" href="/admin/promoters" style="text-decoration:none;color:inherit"><b>{{$d.Promoters}}</b><small>promoters · {{$d.LivePosts}} posts live</small></a>
 {{if $d.FBOn}}<a class="card{{if $d.FBFailed}} hot{{end}}" href="/admin/facebook" style="text-decoration:none;color:inherit"><b>{{$d.FBQueued}}{{if $d.FBFailed}} <span class="pill no">{{$d.FBFailed}} failed</span>{{end}}</b><small>Facebook posts queued</small></a>{{end}}
 <div class="card"><b>{{$d.Upcoming}}</b><small>upcoming approved events</small></div>
 <div class="card"><b>{{$d.Subs}}</b><small>subscribers <span class="mute">(+{{$d.SubsPending}} unconfirmed)</span></small></div>
@@ -195,7 +213,7 @@ const consoleSrc = `
 {{end}}
 
 {{/* ---------- queue ---------- */}}
-{{define "event_card"}}<div class="panel"><b>{{.E.Title}}</b> <span class="pill {{statusCls .E.Status}}">{{.E.Status}}</span> <span class="pill">{{.E.Origin}}</span>{{if .E.MemberID}} <a class="pill ok" href="/admin/members/view?id={{.E.MemberID}}">member #{{.E.MemberID}}</a>{{end}}<br>
+{{define "event_card"}}<div class="panel"><b>{{.E.Title}}</b> <span class="pill {{statusCls .E.Status}}">{{.E.Status}}</span> <span class="pill">{{.E.Origin}}</span>{{if .E.MemberID}} <a class="pill ok" href="/admin/members/view?id={{.E.MemberID}}">{{if .E.Promoted}}promoter{{else}}member{{end}} #{{.E.MemberID}}</a>{{end}}{{if .E.Hidden}} <span class="pill warn">hidden by its promoter</span>{{end}}{{if .E.VisibleFrom}} <span class="pill">shows from {{date .E.VisibleFrom}}</span>{{end}}<br>
 <span class="mute small">{{.E.When}} · {{town .E.Town}} · {{cat .E.Category}} · {{.E.Cost}}{{if .E.Listing}} · listing: {{.E.Listing}}{{end}}{{if .E.SubmitterName}} · from {{.E.SubmitterName}}{{end}} · added {{ago .E.CreatedAt}}</span>
 {{if .E.Summary}}<div style="margin-top:6px;white-space:pre-wrap">{{.E.Summary}}</div>{{end}}
 {{if .E.Website}}<div class="small" style="margin-top:4px"><a href="{{.E.Website}}" rel="noopener noreferrer" target="_blank">{{.E.Website}}</a></div>{{end}}{{if and .E.Source (ne .E.Source .E.Website)}}<div class="small mute">source: {{.E.Source}}</div>{{end}}
@@ -216,6 +234,37 @@ const consoleSrc = `
 {{range .D.Events}}{{template "event_card" (dict "E" . "CSRF" $c "Return" "/admin/queue")}}{{else}}<p class="mute">Nothing waiting.</p>{{end}}
 <h2>Listing submissions waiting ({{len .D.Listings}})</h2>
 {{range .D.Listings}}{{template "listing_card" (dict "L" . "CSRF" $c "Return" "/admin/queue")}}{{else}}<p class="mute">Nothing waiting.</p>{{end}}
+<h2>Posts waiting ({{len .D.Posts}})</h2>
+{{range .D.Posts}}{{template "post_card" (dict "P" . "CSRF" $c "Return" "/admin/queue")}}{{else}}<p class="mute">Nothing waiting.</p>{{end}}
+<h2>Promoter applications ({{len .D.Applicants}})</h2>
+{{range .D.Applicants}}{{template "promoter_card" (dict "P" . "CSRF" $c "Return" "/admin/queue")}}{{else}}<p class="mute">Nothing waiting.</p>{{end}}
+{{end}}
+
+{{define "post_card"}}<div class="panel"><b>{{.P.Title}}</b> <span class="pill {{statusCls .P.Status}}">{{.P.Status}}</span>{{if .P.Hidden}} <span class="pill warn">hidden by its promoter</span>{{end}} <a class="pill ok" href="/admin/members/view?id={{.P.MemberID}}">{{if .P.Org}}{{.P.Org}}{{else}}member #{{.P.MemberID}}{{end}}</a><br>
+<span class="mute small">{{.P.When}} · {{town .P.Town}} · {{cat .P.Category}} · added {{ago .P.CreatedAt}}{{if ne .P.UpdatedAt .P.CreatedAt}} · edited {{ago .P.UpdatedAt}}{{end}}</span>
+<div style="margin-top:6px;white-space:pre-wrap">{{.P.Body}}</div>
+{{if .P.Link}}<div class="small" style="margin-top:4px"><a href="{{.P.Link}}" rel="noopener noreferrer" target="_blank">{{.P.Link}}</a></div>{{end}}
+<form method="post" action="/admin/do" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{.P.ID}}"><input type="hidden" name="return" value="{{.Return}}">
+{{if eq .P.Status "pending_review"}}<button class="ok" name="action" value="post-approve">Approve</button><button class="no" name="action" value="post-reject">Reject</button>{{else if eq .P.Status "approved"}}<button name="action" value="post-unapprove">Pull back to queue</button>{{end}}<button class="sm" name="action" value="post-delete">Delete</button></form></div>{{end}}
+
+{{define "promoter_card"}}{{$p := .P}}<div class="panel"><b>{{$p.Org}}</b> <span class="pill {{if eq $p.Status "approved"}}ok{{else if eq $p.Status "pending"}}warn{{else}}no{{end}}">{{$p.Status}}</span>{{if $p.Trusted}} <span class="pill ok">trusted</span>{{end}} <span class="pill">{{$p.KindName}}</span> <a class="pill ok" href="/admin/members/view?id={{$p.MemberID}}">{{$p.Name}} · {{$p.Email}}</a><br>
+<span class="mute small">{{join (townList $p.Towns) ", "}} · applied {{ago $p.AppliedAt}}{{if $p.DecidedAt}} · decided {{ago $p.DecidedAt}}{{end}} · {{$p.Events}} events · {{$p.Posts}} posts · {{$p.Calendars}} calendars</span>
+<div class="small" style="margin-top:4px">{{if $p.Website}}<a href="{{$p.Website}}" rel="noopener noreferrer" target="_blank">{{$p.Website}}</a> {{end}}{{if $p.Facebook}}· fb: {{$p.Facebook}} {{end}}{{if $p.Instagram}}· ig: {{$p.Instagram}}{{end}}</div>
+<div style="margin-top:6px;white-space:pre-wrap">{{$p.Blurb}}</div>{{if $p.Note}}<div class="small mute">note: {{$p.Note}}</div>{{end}}
+<form method="post" action="/admin/do" class="row" style="margin-top:8px"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{$p.MemberID}}"><input type="hidden" name="return" value="{{.Return}}">
+{{if eq $p.Status "approved"}}{{if $p.Trusted}}<button name="action" value="promoter-untrust">Stop trusting</button>{{else}}<button class="ok" name="action" value="promoter-trust">Trust (publish without a check)</button>{{end}}<input type="text" name="note" placeholder="note to them (optional)" style="width:220px"><button class="no" name="action" value="promoter-revoke">Revoke</button>{{else}}<button class="ok" name="action" value="promoter-approve">Approve</button>{{if eq $p.Status "pending"}}<input type="text" name="note" placeholder="reason (goes in their email, optional)" style="width:260px"><button class="no" name="action" value="promoter-decline">Decline</button>{{end}}{{end}}</form></div>{{end}}
+
+{{define "p_promoters"}}{{$d := .D}}{{$c := .CSRF}}
+<p class="mute small">Promoters post on their own behalf from <span class="mono">/account/promoter</span>: events with a show-from date and a hide switch, posts for the noticeboard, file imports and connected calendars, listings. Everything of theirs comes through the queue unless they are <b>trusted</b>, in which case it publishes at once and shows here and under Events marked <i>promoter</i>. Auto-published items are never queued for the Facebook page. Revoking pulls their published items back into the queue and switches their calendars off.</p>
+<h2>Applications waiting ({{len $d.Pending}})</h2>
+{{range $d.Pending}}{{template "promoter_card" (dict "P" . "CSRF" $c "Return" "/admin/promoters")}}{{else}}<p class="mute">None.</p>{{end}}
+<h2>Approved ({{len $d.Approved}})</h2>
+{{range $d.Approved}}{{template "promoter_card" (dict "P" . "CSRF" $c "Return" "/admin/promoters")}}{{else}}<p class="mute">None yet.</p>{{end}}
+{{if $d.Declined}}<h2>Declined or revoked ({{len $d.Declined}})</h2>
+{{range $d.Declined}}{{template "promoter_card" (dict "P" . "CSRF" $c "Return" "/admin/promoters")}}{{end}}{{end}}
+<h2>Posts</h2>
+<form method="get" action="/admin/promoters" class="filters"><div><label>Status</label><select name="posts"><option value="">any</option>{{range $x := (list "pending_review" "approved" "rejected")}}<option value="{{$x}}" {{if eq $x $d.Status}}selected{{end}}>{{$x}}</option>{{end}}</select></div><div><label>&nbsp;</label><button>Filter</button></div></form>
+{{range $d.Posts}}{{template "post_card" (dict "P" . "CSRF" $c "Return" "/admin/promoters")}}{{else}}<p class="mute">No posts.</p>{{end}}
 {{end}}
 
 {{/* ---------- events ---------- */}}
@@ -230,7 +279,7 @@ const consoleSrc = `
 <div class="panel" style="padding:0 6px"><table><tr><th>Date</th><th>Title</th><th>Where</th><th>Status</th><th>Origin</th><th></th></tr>
 {{range $d.Events}}<tr><td style="white-space:nowrap">{{date .Date}}{{if .EndDate}} → {{date .EndDate}}{{end}}{{if .Time}}<br><span class="mute">{{.Time}}{{if .EndTime}}–{{.EndTime}}{{end}}</span>{{end}}</td>
 <td><a href="/admin/events/edit?id={{.ID}}"><b>{{.Title}}</b></a><br><span class="mute small mono">{{.ID}}</span></td><td>{{town .Town}}<br><span class="mute small">{{cat .Category}}</span></td>
-<td><span class="pill {{statusCls .Status}}">{{.Status}}</span></td><td>{{.Origin}}</td>
+<td><span class="pill {{statusCls .Status}}">{{.Status}}</span>{{if .Hidden}} <span class="pill warn" title="hidden by its promoter">hidden</span>{{end}}{{if .VisibleFrom}} <span class="pill" title="scheduled by its promoter">from {{date .VisibleFrom}}</span>{{end}}</td><td>{{.Origin}}{{if .Promoted}} <span class="pill ok">promoter</span>{{end}}</td>
 <td><form method="post" action="/admin/do" class="row tight"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/events?status={{$d.Status}}&origin={{$d.Origin}}&town={{$d.Town}}&q={{$d.Q}}&page={{$d.Page}}">
 {{if eq .Status "pending_review"}}<button class="ok sm" name="action" value="approve">Approve</button><button class="no sm" name="action" value="reject">Reject</button>{{else if eq .Status "approved"}}<button class="sm" name="action" value="event-unapprove">Unpublish</button>{{else if eq .Status "rejected"}}<button class="ok sm" name="action" value="event-unapprove">Reopen</button>{{end}}</form></td></tr>
 {{else}}<tr><td colspan="6" class="mute">No events match.</td></tr>{{end}}</table></div>
@@ -292,6 +341,10 @@ const consoleSrc = `
 <form method="post" action="/admin/do" class="row" style="margin-top:10px"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{$m.ID}}"><input type="hidden" name="return" value="/admin/members/view?id={{$m.ID}}">
 {{if not $m.VerifiedAt}}<button name="action" value="member-resend">Resend confirmation</button><button class="ok" name="action" value="member-verify">Confirm now</button>{{end}}{{if eq $m.Status "active"}}<button name="action" value="member-disable">Disable account</button>{{else}}<button class="ok" name="action" value="member-enable">Enable account</button>{{end}}{{if $d.Sessions}}<button name="action" value="member-signout">Sign out everywhere</button>{{end}}<a class="btn" href="/admin/members">Back</a></form>
 <p class="small mute">Disabling keeps the account and its events but the person cannot sign in; their published events stay on the site. Enable to let them back in.</p></div>
+{{if $d.P}}<h2>Promoter</h2>{{template "promoter_card" (dict "P" $d.P "CSRF" $c "Return" (printf "/admin/members/view?id=%d" $m.ID))}}
+{{if $d.Calendars}}<div class="panel"><b>Connected calendars</b><table>{{range $d.Calendars}}<tr><td>{{.Label}} {{if .Enabled}}<span class="pill ok">on</span>{{else}}<span class="pill no">off</span>{{end}}</td><td class="small"><a href="{{.URL}}" rel="noopener noreferrer" target="_blank">{{short .URL 60}}</a></td><td class="small">{{if .Checked}}{{ago .Checked}}: {{short .Status 48}}{{else}}not yet checked{{end}}</td><td><a class="btn sm" href="/admin/sources">Sources</a></td></tr>{{end}}</table></div>{{end}}
+<h3>Posts from this member ({{len $d.Posts}})</h3>
+{{range $d.Posts}}{{template "post_card" (dict "P" . "CSRF" $c "Return" (printf "/admin/members/view?id=%d" $m.ID))}}{{else}}<p class="mute">None yet.</p>{{end}}{{end}}
 <h2>Events from this member ({{len $d.Events}})</h2>
 {{range $d.Events}}{{template "event_card" (dict "E" . "CSRF" $c "Return" (printf "/admin/members/view?id=%d" $m.ID))}}{{else}}<p class="mute">None yet.</p>{{end}}
 <form method="post" action="/admin/do" class="panel danger"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{$m.ID}}"><h3>Danger zone</h3><p class="row"><label class="inline" style="margin:0"><input type="checkbox" name="confirm" value="yes"> yes, I mean it</label><button class="sm" name="action" value="member-delete">Delete account</button><button class="no sm" name="action" value="member-block">Block address and delete</button></p><p class="small mute">Deleting removes the account, its sessions and its unpublished events; published events stay on the site with the name and email removed (the same as when a member deletes their own account). Blocking also stores a hash of the address so it cannot register or submit again.</p></form>
@@ -363,7 +416,7 @@ const consoleSrc = `
 <div class="row" style="margin-bottom:12px"><span class="mute">Watching {{if $d.On}}<span class="pill ok">on</span>{{else}}<span class="pill no">off</span>{{end}} · every {{$d.Interval}} min · last check {{ago $d.LastWatch}}</span>
 <form method="post" action="/admin/do" class="inline"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="return" value="/admin/sources"><button name="action" value="watch">Check all now</button></form></div>
 <div class="panel wide" style="padding:0 6px"><table class="compact"><tr><th>Source</th><th>Kind</th><th>Maps to</th><th>Last check</th><th>Status</th><th class="num">Events</th><th></th></tr>
-{{range $d.Sources}}{{$s := .}}<tr {{if not .Enabled}}style="opacity:.55"{{end}}><td><b>{{.Label}}</b> <a class="small mute" href="{{.URL}}" rel="noopener noreferrer" target="_blank" title="{{.URL}}">{{short .URL 48}} ↗</a></td><td>{{.Kind}}</td><td class="small">{{town .Town}} · {{cat .Category}}{{if .Listing}} · <span class="mono">{{.Listing}}</span>{{end}}{{if .Match}} · <span class="mute" title="{{.Match}}">filter: <span class="mono">{{short .Match 28}}</span></span>{{end}}</td><td class="small">{{ago .Checked}}{{if .Changed}} <span class="mute">· changed {{ago .Changed}}</span>{{end}}</td><td class="small">{{if .Status}}<span class="pill {{if hasPrefix .Status "error"}}no{{else if eq .Status "changed"}}warn{{else if hasPrefix .Status "retired"}}{{else}}ok{{end}}" title="{{.Status}}">{{short .Status 48}}</span>{{else}}<span class="mute">not yet checked</span>{{end}}</td><td class="num">{{.Events}}</td>
+{{range $d.Sources}}{{$s := .}}<tr {{if not .Enabled}}style="opacity:.55"{{end}}><td><b>{{.Label}}</b>{{if .Org}} <span class="pill ok" title="connected by a promoter">{{.Org}}</span>{{end}} <a class="small mute" href="{{.URL}}" rel="noopener noreferrer" target="_blank" title="{{.URL}}">{{short .URL 48}} ↗</a></td><td>{{.Kind}}</td><td class="small">{{town .Town}} · {{cat .Category}}{{if .Listing}} · <span class="mono">{{.Listing}}</span>{{end}}{{if .Match}} · <span class="mute" title="{{.Match}}">filter: <span class="mono">{{short .Match 28}}</span></span>{{end}}</td><td class="small">{{ago .Checked}}{{if .Changed}} <span class="mute">· changed {{ago .Changed}}</span>{{end}}</td><td class="small">{{if .Status}}<span class="pill {{if hasPrefix .Status "error"}}no{{else if eq .Status "changed"}}warn{{else if hasPrefix .Status "retired"}}{{else}}ok{{end}}" title="{{.Status}}">{{short .Status 48}}</span>{{else}}<span class="mute">not yet checked</span>{{end}}</td><td class="num">{{.Events}}</td>
 <td><div class="row tight"><form method="post" action="/admin/do" class="row tight"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/sources"><button class="sm" name="action" value="watch-one">Check</button><button class="sm" name="action" value="source-toggle">{{if .Enabled}}Disable{{else}}Enable{{end}}</button><button class="sm" name="action" value="source-forget" title="Forget what was seen so everything is offered again">Forget</button><button class="no sm" name="action" value="source-delete">Delete</button></form>
 <details><summary>edit</summary><form method="post" action="/admin/do"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="return" value="/admin/sources"><label>Label</label><input type="text" name="label" value="{{.Label}}"><label>URL</label><input type="url" name="url" value="{{.URL}}"><div class="grid2"><div><label>Kind</label><select name="kind">{{range $d.Kinds}}<option value="{{.}}" {{if eq . $s.Kind}}selected{{end}}>{{.}}</option>{{end}}</select></div><div><label>Listing id</label><input type="text" name="listing" value="{{.Listing}}"></div></div><div class="grid2"><div><label>Town</label><select name="town">{{range $d.Towns}}<option value="{{.}}" {{if eq . $s.Town}}selected{{end}}>{{town .}}</option>{{end}}</select></div><div><label>Category</label><select name="category">{{range $d.Cats}}<option value="{{.}}" {{if eq . $s.Category}}selected{{end}}>{{cat .}}</option>{{end}}</select></div></div><label>Only queue events matching (ics feeds; pattern, case-insensitive; blank = everything)</label><input type="text" name="match" value="{{.Match}}" placeholder="somerset|strand|gordon|helderberg"><p><button class="sm pri" name="action" value="source-save">Save</button></p></form></details></div></td></tr>
 {{else}}<tr><td colspan="7" class="mute">No sources.</td></tr>{{end}}</table></div>

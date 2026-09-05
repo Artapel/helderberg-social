@@ -8,7 +8,7 @@ import "html/template"
 // is a plain form that works without JavaScript.
 
 func parseAccount() *template.Template {
-	return template.Must(template.New("account").Funcs(consoleFuncs).Parse(accountSrc))
+	return template.Must(template.New("account").Funcs(consoleFuncs).Parse(accountSrc + promoterSrc))
 }
 
 const accountCSS = `
@@ -62,7 +62,7 @@ footer{max-width:880px;margin:0 auto;padding:0 20px 30px;color:var(--muted);font
 const accountSrc = `
 {{define "account_layout"}}<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>{{.Title}} · Helderberg Social</title><style>` + accountCSS + `</style></head>
 <body><header><div class="in"><a class="logo" href="{{.Site}}/">Helderberg Social</a><nav>
-{{if .Member}}<a href="/account" {{if eq .Active "/account"}}class="on"{{end}}>My events{{if .Pending}} <span class="pill warn">{{.Pending}} waiting</span>{{end}}</a><a href="/account/events/new" {{if eq .Active "/account/events/new"}}class="on"{{end}}>Post an event</a><a href="/account/settings" {{if eq .Active "/account/settings"}}class="on"{{end}}>Account</a><form method="post" action="/account/logout" style="display:inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>Sign out</button></form>
+{{if .Member}}<a href="/account" {{if eq .Active "/account"}}class="on"{{end}}>My events{{if .Pending}} <span class="pill warn">{{.Pending}} waiting</span>{{end}}</a><a href="/account/events/new" {{if eq .Active "/account/events/new"}}class="on"{{end}}>Post an event</a><a href="/account/promoter" {{if hasPrefix .Active "/account/promoter"}}class="on"{{end}}>{{if .Member.IsPromoter}}Promote{{else}}Promote with us{{end}}</a><a href="/account/settings" {{if eq .Active "/account/settings"}}class="on"{{end}}>Account</a><form method="post" action="/account/logout" style="display:inline"><input type="hidden" name="csrf" value="{{.CSRF}}"><button>Sign out</button></form>
 {{else}}<a href="{{.Site}}/events.html">Events</a><a href="/account/login" {{if eq .Active "/account/login"}}class="on"{{end}}>Sign in</a>{{if .RegOn}}<a href="/account/register" {{if eq .Active "/account/register"}}class="on"{{end}}>Create account</a>{{end}}{{end}}
 </nav></div></header>
 <main><h1>{{.Title}}</h1>{{if .Msg}}<div class="msg{{if .Err}} err{{end}}">{{.Msg}}</div>{{end}}
@@ -120,22 +120,24 @@ const accountSrc = `
 
 {{define "acc_events"}}{{$d := .D}}{{$c := .CSRF}}
 <div class="panel">{{range $d.Events}}<div class="ev"><div><b>{{.Title}}</b> <span class="pill {{statusCls .Status}}">{{.StatusText}}</span><div class="meta">{{.When}} · {{.TownName}} · {{.CatName}}{{if .Live}} · <a href="{{.Live}}">see it on the site</a>{{end}}</div></div>
-<div class="acts">{{if .Editable}}<a class="btn sm" href="/account/events/edit?id={{.ID}}">Edit</a>{{end}}<form method="post" action="/account/events/withdraw"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><label class="inline" style="margin:0;font-size:13px"><input type="checkbox" name="confirm" value="yes"> remove</label> <button class="no sm">Remove</button></form></div></div>
+<div class="acts">{{if .Editable}}<a class="btn sm" href="/account/events/edit?id={{.ID}}">Edit</a>{{if $.V.Member.IsPromoter}}<form method="post" action="/account/promoter/events/toggle"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="to" value="{{if .Hidden}}show{{else}}hide{{end}}"><button class="sm">{{if .Hidden}}Show{{else}}Hide{{end}}</button></form>{{end}}{{end}}<form method="post" action="/account/events/withdraw"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="id" value="{{.ID}}"><label class="inline" style="margin:0;font-size:13px"><input type="checkbox" name="confirm" value="yes"> remove</label> <button class="no sm">Remove</button></form></div></div>
 {{else}}<p>You have not posted anything yet.</p>{{end}}</div>
-<p class="row"><a class="btn pri" href="/account/events/new">Post an event</a></p>
+<p class="row"><a class="btn pri" href="/account/events/new">Post an event</a>{{if .V.Member.IsPromoter}}<a class="btn" href="/account/promoter">Promoter tools: posts, import, calendars</a>{{else}}<a class="btn" href="/account/promoter">Post a lot? Promote with us</a>{{end}}</p>
 <h2>How it works</h2><ol class="steps"><li>You post an event; it shows here as <span class="pill warn">Waiting for a check</span>.</li><li>A person reads it, usually within a day. Community events anywhere in the Helderberg (Somerset West, Strand, Gordon's Bay, Sir Lowry's Pass) that are open to the public are welcome; commercial promotions are not.</li><li>You get an email when it is published, or when it is not (with a reason). Editing a published event sends it for a fresh check.</li></ol>
 {{end}}
 
 {{define "acc_event_form"}}{{$f := .D}}{{$e := $f.E}}
 <form method="post" action="/account/events/save" class="panel"><input type="hidden" name="csrf" value="{{.CSRF}}"><input type="hidden" name="id" value="{{$e.ID}}">
-{{if not $f.New}}<p class="hint">Saving sends the event back for a quick check before the change shows on the site.</p>{{end}}
+<p class="hint" style="margin:0 0 6px">An <b>event</b> is something with a date that people can go to: a market, a race, a talk, a clean-up, a show, a class open day. For a standing thing (a club, a weekly activity, a place) add a <a href="{{.V.Site}}/submit.html">listing</a> instead{{if $f.Promoter}}; for a notice that runs over several days, a <a href="/account/promoter/posts/new">post</a>{{end}}.</p>
+{{if not $f.New}}{{if $f.Trusted}}<p class="hint">Changes go live as soon as you save.</p>{{else}}<p class="hint">Saving sends the event back for a quick check before the change shows on the site.</p>{{end}}{{end}}
 <label for="title">Event title</label><input type="text" id="title" name="title" value="{{$e.Title}}" required maxlength="120" placeholder="e.g. Strand beach clean-up">
 <div class="grid2"><div><label for="date">Date</label><input type="date" id="date" name="date" value="{{$e.Date}}" required></div><div><label for="end_date">End date (multi-day events only)</label><input type="date" id="end_date" name="end_date" value="{{$e.EndDate}}"></div>
 <div><label for="time">Start time</label><input type="time" id="time" name="time" value="{{$e.Time}}"><p class="hint">Leave empty for an all-day event.</p></div><div><label for="end_time">End time</label><input type="time" id="end_time" name="end_time" value="{{$e.EndTime}}"></div>
 <div><label for="town">Town</label><select id="town" name="town">{{range $f.Towns}}<option value="{{.}}" {{if eq . $e.Town}}selected{{end}}>{{town .}}</option>{{end}}</select></div><div><label for="category">Category</label><select id="category" name="category">{{range $f.Cats}}<option value="{{.}}" {{if eq . $e.Category}}selected{{end}}>{{cat .}}</option>{{end}}</select></div>
 <div><label for="cost">Cost</label><select id="cost" name="cost">{{range $f.Costs}}<option value="{{.}}" {{if eq . $e.Cost}}selected{{end}}>{{title .}}</option>{{end}}</select></div><div><label for="website">Web page or Facebook event (optional)</label><input type="url" id="website" name="website" value="{{$e.Website}}" placeholder="https://"></div></div>
+{{if $f.Promoter}}<div class="grid2"><div><label for="visible_from">Show on the site from (optional)</label><input type="date" id="visible_from" name="visible_from" value="{{$e.VisibleFrom}}"><p class="hint">Leave empty to show as soon as it is published. Set a date to schedule it: the event stays off the site and the feeds until then.</p></div></div>{{end}}
 <label for="summary">What is it? (where exactly, who it is for, what to bring)</label><textarea id="summary" name="summary" required minlength="20" maxlength="800">{{$e.Summary}}</textarea><p class="hint">Plain text, up to 800 characters. Include the venue; the site only knows the town.</p>
-<div class="row"><button class="pri">{{if $f.New}}Send for checking{{else}}Save changes{{end}}</button><a class="btn" href="/account">Cancel</a></div></form>
+<div class="row"><button class="pri">{{if $f.New}}{{if $f.Trusted}}Publish{{else}}Send for checking{{end}}{{else}}Save changes{{end}}</button><a class="btn" href="/account">Cancel</a></div></form>
 {{end}}
 
 {{define "acc_settings"}}{{$m := .V.Member}}{{$c := .CSRF}}

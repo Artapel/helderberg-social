@@ -25,6 +25,7 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/health", a.health)
 	mux.HandleFunc("GET /api/mail-dns", a.mailDNS)
 	mux.HandleFunc("GET /api/events", a.getEvents)
+	mux.HandleFunc("GET /api/posts", a.getPosts)
 	mux.HandleFunc("POST /api/subscribe", a.subscribe)
 	mux.HandleFunc("GET /api/confirm", a.confirm)
 	mux.HandleFunc("GET /api/unsubscribe", a.unsubscribe)
@@ -122,7 +123,11 @@ func (a *App) middleware(next http.Handler) http.Handler {
 			a.page(w, 503, "Back in a few minutes", a.setting("maintenance_text"), "")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+		limit := int64(maxBody)
+		if r.URL.Path == "/account/promoter/import" {
+			limit = promoterImportBytes + 4096 // the file plus the form around it
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		sw := &statusWriter{ResponseWriter: w, status: 200}
 		next.ServeHTTP(sw, r)
 		ms := time.Since(start).Milliseconds()
@@ -244,6 +249,15 @@ func (a *App) getEvents(w http.ResponseWriter, r *http.Request) {
 	}
 	if evs == nil {
 		evs = []Event{}
+	}
+	var orgs map[int64]string
+	for i := range evs {
+		if evs[i].Promoted && evs[i].MemberID != 0 {
+			if orgs == nil {
+				orgs = a.promoterOrgs()
+			}
+			evs[i].By = orgs[evs[i].MemberID]
+		}
 	}
 	body, _ := json.Marshal(map[string]any{"ok": true, "events": evs, "generated": now(), "site": a.siteInfo()})
 	sum := sha256.Sum256(body)

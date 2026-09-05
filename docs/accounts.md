@@ -130,6 +130,15 @@ same "wrong email address or password" as everyone else (no enumeration). Under
 link; after that both ways in work. Admin *disable* stops provider sign-in too
 (the session check and the callback both read `status`).
 
+## Promoter accounts
+
+A member can apply, from **Promote with us** in the account nav, to become a
+promoter: post many events, schedule and hide them, run noticeboard posts, import
+.ics/.csv files, connect public calendars and submit listings, all under an
+organisation name. The admin approves, and separately *trusts*, each one. The
+whole model, routes, limits, console side and tests are in `docs/promoters.md`
+(added 2026-09-05).
+
 ## What the admin sees
 
 - **Members** in the console nav: counts (confirmed / unconfirmed / disabled /
@@ -155,13 +164,15 @@ members            id, email UNIQUE, name, pw_hash ('' = provider only), created
 member_identities  (provider, sub) PK, member_id (CASCADE), email, linked_at; index on member_id
 member_sessions    id_hash PK, member_id, created_at, last_seen_at, expires_at, ip_hash, ua, revoked
 events.member_id INTEGER (NULL for everything not posted from an account), index events_member
+members.role, members.trusted, promoters, posts, events.visible_from/hidden/promoted,
+sources.member_id, listing_submissions.member_id   (promoters, docs/promoters.md)
 ```
 
 Schema version 9 (5 added `events.member_id`, 6 added `sources.match`, 7 widened
 `sources.kind` to allow `list` by rebuilding the table, and added `fb_groups`
 for the Facebook groups rota in `docs/facebook.md`; 8 added `members.google_sub`;
 9 replaced it with `member_identities`, copying any linked Google row across and
-dropping the column);
+dropping the column; 10 added the promoter tables and columns above);
 `migrate()` adds the missing columns to an older database on start-up. Housekeeping (hourly) deletes unconfirmed members after 3 days and
 expired or revoked member sessions after a day. The 90-day scrub of
 `submitter_name`/`submitter_email` on decided events applies to member events too;
@@ -192,6 +203,7 @@ the `member_id` link stays, so the console still shows who posted it.
   `member.reset_done`, `member.password`, `member.event_new`, `member.event_edit`,
   `member.event_withdraw`, `member.delete` and the admin's `member.disable` /
   `member.enable` / `member.verify_admin` / `member.block` / `member.signout`.
+  Promoter kinds are listed in `docs/promoters.md`.
 
 ## Site side
 
@@ -204,7 +216,11 @@ full on hover, `rel="nofollow"`) links to `/admin/login` on the API host. It is
 not a secret, the console has its own sign-in and second factor; it is just kept
 out of visitors' way (added 2026-09-05). `events.html` has a "Post your event" line, and `submit.html` shows a
 notice above the form when *A dated event* is chosen, pointing at the account
-route while still allowing the old confirm-by-email path.
+route while still allowing the old confirm-by-email path. Since 2026-09-05 every
+**Add a listing** / **Post an event** entry point carries a `?` help bubble
+(`HS.help`) explaining what a listing and an event are, how to submit one and
+what happens next, and the footer, home band and events page link to
+`promote.html`.
 
 ## Tests
 

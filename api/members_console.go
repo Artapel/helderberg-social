@@ -48,9 +48,12 @@ func (a *App) membersPage(w http.ResponseWriter, r *http.Request) {
 }
 
 type memberViewData struct {
-	M        *Member
-	Events   []Event
-	Sessions int
+	M         *Member
+	Events    []Event
+	Sessions  int
+	P         *Promoter
+	Posts     []postRow
+	Calendars []sourceRow
 }
 
 func (a *App) memberViewPage(w http.ResponseWriter, r *http.Request) {
@@ -62,7 +65,7 @@ func (a *App) memberViewPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	evs, _ := a.queryEvents(`member_id = ?`, id)
-	d := memberViewData{M: m, Events: evs, Sessions: a.count(`SELECT COUNT(*) FROM member_sessions WHERE member_id = ? AND revoked = 0 AND expires_at > ?`, id, now())}
+	d := memberViewData{M: m, Events: evs, Sessions: a.count(`SELECT COUNT(*) FROM member_sessions WHERE member_id = ? AND revoked = 0 AND expires_at > ?`, id, now()), P: a.promoterByMember(id), Posts: a.postRows(`member_id = ?`, id), Calendars: a.memberSources(id)}
 	a.renderConsole(w, r, "p_member_view", "Member: "+m.Name, d)
 }
 

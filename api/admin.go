@@ -130,6 +130,20 @@ func (a *App) decide(kind, id, action string) (string, error) {
 		}
 		a.notifyMemberDecision(id, status)
 		return fmt.Sprintf("Event %q is now %s.", id, status), nil
+	case "post:approve", "post:reject":
+		status := "approved"
+		if action == "reject" {
+			status = "rejected"
+		}
+		res, err := a.db.Exec(`UPDATE posts SET status=?, decided_at=? WHERE id=? AND status='pending_review'`, status, now(), id)
+		if err != nil {
+			return "", err
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return "That post was already decided or does not exist.", nil
+		}
+		a.notifyPostDecision(id, status)
+		return fmt.Sprintf("Post %q is now %s.", id, status), nil
 	case "listing:accept", "listing:reject":
 		status := "accepted"
 		if action == "reject" {
