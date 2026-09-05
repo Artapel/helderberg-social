@@ -40,6 +40,8 @@ button,.btn{font:inherit;font-weight:600;padding:10px 16px;border-radius:10px;bo
 button.pri,.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
 button.no{background:transparent;color:var(--no);border-color:var(--no)}
 button.sm,.btn.sm{padding:6px 10px;font-size:13px}
+.btn.google{display:inline-flex;align-items:center;gap:10px;background:var(--surface);border-color:var(--line)}
+.or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:13px;margin:16px 0}.or:before,.or:after{content:"";flex:1;border-top:1px solid var(--line)}
 .msg{padding:10px 14px;border-radius:10px;margin:0 0 16px;background:#e4f3e9;color:#1d5b34;border:1px solid #b9dfc6}
 .msg.err{background:#fbe7e5;color:#8c2a22;border-color:#f1c2bd}
 @media (prefers-color-scheme:dark){.msg{background:#14301f;color:#a9e3bf;border-color:#245a3a}.msg.err{background:#3a1613;color:#ffb3ab;border-color:#6b2a24}}
@@ -69,6 +71,7 @@ const accountSrc = `
 
 {{define "acc_register"}}{{$d := .D}}
 <div class="panel narrow"><p>An account lets you post events to Helderberg Social and see whether they were published. Every event is still checked by a person before it appears.</p>
+{{if .V.Google}}<p class="row"><a class="btn google" href="/account/google/start?next={{$d.Next}}"><svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.5 28.6A14.5 14.5 0 0 1 9.7 24c0-1.6.3-3.1.8-4.6l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Continue with Google</a></p><p class="hint">Quickest: no password, and no confirmation email to wait for.</p><div class="or">or with your email address</div>{{end}}
 <form method="post" action="/account/register"><input type="hidden" name="next" value="{{$d.Next}}"><div style="position:absolute;left:-9999px" aria-hidden="true"><label>Website</label><input type="text" name="website_url" tabindex="-1" autocomplete="off"></div>
 <label for="name">Your name</label><input type="text" id="name" name="name" required maxlength="80" autocomplete="name">
 <label for="email">Email address</label><input type="email" id="email" name="email" required maxlength="120" autocomplete="email"><p class="hint">We send a confirmation link here, and later tell you when an event is published.</p>
@@ -85,8 +88,9 @@ const accountSrc = `
 {{end}}
 
 {{define "acc_login"}}{{$d := .D}}
-<div class="panel narrow"><form method="post" action="/account/login"><input type="hidden" name="next" value="{{$d.Next}}">
-<label for="email">Email address</label><input type="email" id="email" name="email" value="{{$d.Email}}" required autocomplete="email" autofocus>
+<div class="panel narrow">{{if .V.Google}}<p class="row"><a class="btn google" href="/account/google/start?next={{$d.Next}}"><svg viewBox="0 0 48 48" width="18" height="18" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.7 6c4.5-4.2 6.9-10.3 6.9-17.7z"/><path fill="#FBBC05" d="M10.5 28.6A14.5 14.5 0 0 1 9.7 24c0-1.6.3-3.1.8-4.6l-7.9-6.1A24 24 0 0 0 0 24c0 3.9.9 7.5 2.6 10.7l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.7-6c-2.1 1.4-4.9 2.3-8.2 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/></svg>Sign in with Google</a></p><div class="or">or with your email address</div>{{end}}
+<form method="post" action="/account/login"><input type="hidden" name="next" value="{{$d.Next}}">
+<label for="email">Email address</label><input type="email" id="email" name="email" value="{{$d.Email}}" required autocomplete="email" {{if not .V.Google}}autofocus{{end}}>
 <label for="pw">Password</label><input type="password" id="pw" name="password" required autocomplete="current-password">
 <div class="row"><button class="pri">Sign in</button><a href="/account/forgot">Forgotten your password?</a></div></form></div>
 {{if .V.RegOn}}<p>New here? <a href="/account/register?next={{$d.Next}}">Create an account</a> to post events.</p>{{end}}
@@ -136,13 +140,17 @@ const accountSrc = `
 <label for="name">Name</label><input type="text" id="name" name="name" value="{{$m.Name}}" required maxlength="80"><p class="hint">Only the moderator sees it. Signed in as <b>{{$m.Email}}</b>.</p>
 <div class="row"><button>Save name</button></div></form>
 <form method="post" action="/account/settings" class="panel"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="action" value="password"><h2 style="margin-top:0">Password</h2>
-<label for="cur">Current password</label><input type="password" id="cur" name="current" required autocomplete="current-password">
+{{if $m.HasPassword}}<label for="cur">Current password</label><input type="password" id="cur" name="current" required autocomplete="current-password">
+{{else}}<p class="hint">You sign in with Google and have no password. Set one if you also want to sign in with your email address.</p>{{end}}
 <label for="pw">New password</label><input type="password" id="pw" name="password" required minlength="10" autocomplete="new-password">
 <label for="pw2">New password again</label><input type="password" id="pw2" name="password2" required minlength="10" autocomplete="new-password">
-<div class="row"><button>Change password</button></div></form></div>
+<div class="row"><button>{{if $m.HasPassword}}Change password{{else}}Set password{{end}}</button></div></form></div>
+{{if or $m.GoogleSub .V.Google}}<div class="panel"><h2 style="margin-top:0">Google</h2>{{if $m.GoogleSub}}<p class="hint">A Google account is linked; the <b>Sign in with Google</b> button signs you into this account.</p>
+{{if $m.HasPassword}}<form method="post" action="/account/settings" class="row"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="action" value="google-unlink"><button>Unlink Google</button></form>{{else}}<p class="hint">To unlink it, set a password first.</p>{{end}}
+{{else}}<p class="hint">Not linked. Sign in with Google using the same email address (<b>{{$m.Email}}</b>) and it links itself.</p>{{end}}</div>{{end}}
 <form method="post" action="/account/settings" class="panel danger"><input type="hidden" name="csrf" value="{{$c}}"><input type="hidden" name="action" value="delete"><h2 style="margin-top:0">Delete this account</h2>
 <p class="hint" style="margin-bottom:8px">Removes your account, your sign-ins and any event of yours that is not published. Events that are already on the site stay there, with your name and email removed from them (they are public information about the event, not about you). If you also want a published event gone, remove it from <a href="/account">My events</a> first.</p>
-<label for="dpw">Your password</label><input type="password" id="dpw" name="current" autocomplete="current-password" style="max-width:320px">
+{{if $m.HasPassword}}<label for="dpw">Your password</label><input type="password" id="dpw" name="current" autocomplete="current-password" style="max-width:320px">{{end}}
 <div class="row"><label class="inline" style="margin:0"><input type="checkbox" name="confirm" value="yes"> yes, delete my account</label><button class="no">Delete account</button></div></form>
 {{end}}
 `

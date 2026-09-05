@@ -48,6 +48,9 @@ type Config struct {
 	// Facebook page posting (Graph API). Page id + a Page access token; with
 	// neither set posting is off and the console says so.
 	FBPageID, FBToken, FBVersion string
+	// "Sign in with Google" for members (OpenID Connect). Both or none; with
+	// neither set the button is hidden and /account/google/* refuses politely.
+	GoogleClientID, GoogleClientSecret string
 }
 
 func env(key, def string) string {
@@ -80,6 +83,13 @@ func loadConfig() (*Config, error) {
 		WAVersion: env("HS_WA_API_VERSION", "v22.0"), WALang: env("HS_WA_LANG", "en"),
 		WATemplateConfirm: env("HS_WA_TEMPLATE_CONFIRM", "hs_confirm"), WATemplateDigest: env("HS_WA_TEMPLATE_DIGEST", "hs_digest"),
 		FBPageID: env("HS_FB_PAGE_ID", ""), FBToken: env("HS_FB_PAGE_TOKEN", ""), FBVersion: env("HS_FB_API_VERSION", "v22.0"),
+		GoogleClientID: env("HS_GOOGLE_CLIENT_ID", ""), GoogleClientSecret: env("HS_GOOGLE_CLIENT_SECRET", ""),
+	}
+	if (c.GoogleClientID == "") != (c.GoogleClientSecret == "") {
+		return nil, fmt.Errorf("Google sign-in needs HS_GOOGLE_CLIENT_ID and HS_GOOGLE_CLIENT_SECRET together; leave both empty to disable")
+	}
+	if c.GoogleClientID != "" && !strings.HasSuffix(c.GoogleClientID, ".apps.googleusercontent.com") {
+		return nil, fmt.Errorf("HS_GOOGLE_CLIENT_ID should end in .apps.googleusercontent.com")
 	}
 	secret := env("HS_SECRET", "")
 	if len(secret) < 32 {

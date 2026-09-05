@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 7
+const schemaVersion = 8
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -69,8 +69,10 @@ var schema = []string{
 		verified_at TEXT,
 		last_login_at TEXT,
 		status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
-		ip_hash TEXT NOT NULL DEFAULT ''
+		ip_hash TEXT NOT NULL DEFAULT '',
+		google_sub TEXT
 	)`,
+	`CREATE UNIQUE INDEX IF NOT EXISTS members_google ON members(google_sub)`,
 	`CREATE TABLE IF NOT EXISTS member_sessions (
 		id_hash TEXT PRIMARY KEY,
 		member_id INTEGER NOT NULL,
@@ -248,6 +250,13 @@ func migrate(db *sql.DB) error {
 		if err != nil {
 			_, _ = db.Exec(`ROLLBACK`)
 			return fmt.Errorf("migrate sources to v7: %w", err)
+		}
+	}
+	// v8: members may sign in with Google; the Google subject links the
+	// account. NULL for everyone else, and the unique index ignores NULLs.
+	if !hasColumn(db, "members", "google_sub") {
+		if _, err := db.Exec(`ALTER TABLE members ADD COLUMN google_sub TEXT`); err != nil {
+			return fmt.Errorf("migrate members.google_sub: %w", err)
 		}
 	}
 	return nil

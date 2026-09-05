@@ -54,8 +54,12 @@ type Member struct {
 	LastLoginAt string
 	Status      string // active | disabled
 	IPHash      string
-	Events      int // filled by the console list
+	GoogleSub   string // Google account id when linked; '' otherwise
+	Events      int    // filled by the console list
 }
+
+// HasPassword is false for a member who only ever signed in with Google.
+func (m *Member) HasPassword() bool { return m.PwHash != "" }
 
 type memberSession struct {
 	Hash     string
@@ -185,11 +189,11 @@ func (l *lockout) clear(key string) {
 
 /* ---------- storage ---------- */
 
-const memberCols = `id, email, name, pw_hash, created_at, COALESCE(verified_at,''), COALESCE(last_login_at,''), status, ip_hash`
+const memberCols = `id, email, name, pw_hash, created_at, COALESCE(verified_at,''), COALESCE(last_login_at,''), status, ip_hash, COALESCE(google_sub,'')`
 
 func scanMember(row interface{ Scan(...any) error }) (*Member, error) {
 	var m Member
-	err := row.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash)
+	err := row.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash, &m.GoogleSub)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +225,7 @@ func (a *App) members(where string, limit, offset int, args ...any) []Member {
 	var out []Member
 	for rows.Next() {
 		var m Member
-		if rows.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash, &m.Events) == nil {
+		if rows.Scan(&m.ID, &m.Email, &m.Name, &m.PwHash, &m.CreatedAt, &m.VerifiedAt, &m.LastLoginAt, &m.Status, &m.IPHash, &m.GoogleSub, &m.Events) == nil {
 			out = append(out, m)
 		}
 	}
@@ -347,12 +351,13 @@ type accountView struct {
 	Version string
 	Active  string
 	RegOn   bool
+	Google  bool // "Sign in with Google" is configured
 	Pending int
 }
 
 func (a *App) renderAccount(w http.ResponseWriter, r *http.Request, status int, name, title string, data any) {
 	s := memberOf(r)
-	v := accountView{Title: title, Site: a.cfg.SiteURL, Version: a.version, Active: r.URL.Path, RegOn: a.settingBool("registrations_on")}
+	v := accountView{Title: title, Site: a.cfg.SiteURL, Version: a.version, Active: r.URL.Path, RegOn: a.settingBool("registrations_on"), Google: a.googleEnabled()}
 	if s != nil {
 		v.Member = s.Member
 		v.CSRF = a.memberCSRF(s)
@@ -414,6 +419,7 @@ func (a *App) accountRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /account/settings", a.requireMember(a.memberSettingsPage))
 	mux.HandleFunc("POST /account/settings", a.requireMember(a.memberSettingsPost))
 	mux.HandleFunc("POST /account/logout", a.requireMember(a.memberLogout))
+	a.googleRoutes(mux)
 }
 
 /* ---------- register / verify ---------- */
@@ -881,9 +887,11 @@ func (a *App) memberSettingsPost(w http.ResponseWriter, r *http.Request) {
 		_, _ = a.db.Exec(`UPDATE events SET submitter_name = ? WHERE member_id = ?`, name, s.MemberID)
 		a.accountBack(w, r, "/account/settings", "Name saved.", false)
 	case "password":
-		if ok, _ := checkPassword(s.Member.PwHash, f.Get("current")); !ok {
-			a.accountBack(w, r, "/account/settings", "Your current password is wrong.", true)
-			return
+		if s.Member.HasPassword() {
+			if ok, _ := checkPassword(s.Member.PwHash, f.Get("current")); !ok {
+				a.accountBack(w, r, "/account/settings", "Your current password is wrong.", true)
+				return
+			}
 		}
 		pw := f.Get("password")
 		if pw != f.Get("password2") {
@@ -894,24 +902,46 @@ func (a *App) memberSettingsPost(w http.ResponseWriter, r *http.Request) {
 			a.accountBack(w, r, "/account/settings", msg, true)
 			return
 		}
+		first := !s.Member.HasPassword()
 		_, _ = a.db.Exec(`UPDATE members SET pw_hash = ? WHERE id = ?`, hashPassword(pw), s.MemberID)
 		// every other device signs out; this one gets a fresh session
 		a.revokeMemberSessions(s.MemberID)
 		_ = a.createMemberSession(w, r, s.Member)
 		a.audit(r, "member.password", fmt.Sprint(s.MemberID), "")
+		if first {
+			a.accountBack(w, r, "/account/settings", "Password set. You can now sign in with it or with Google.", false)
+			return
+		}
 		a.accountBack(w, r, "/account/settings", "Password changed. Other devices have been signed out.", false)
 	case "delete":
 		if f.Get("confirm") != "yes" {
 			a.accountBack(w, r, "/account/settings", "Tick the box to confirm.", true)
 			return
 		}
-		if ok, _ := checkPassword(s.Member.PwHash, f.Get("current")); !ok {
-			a.accountBack(w, r, "/account/settings", "Your password is wrong.", true)
-			return
+		// A Google-only account has no password to ask for; the tick and the
+		// live session (and its CSRF token) are the confirmation.
+		if s.Member.HasPassword() {
+			if ok, _ := checkPassword(s.Member.PwHash, f.Get("current")); !ok {
+				a.accountBack(w, r, "/account/settings", "Your password is wrong.", true)
+				return
+			}
 		}
 		a.deleteMember(s.MemberID, r, "self")
 		a.setMemberCookie(w, "", 0)
 		a.accountBack(w, r, "/account/login", "Your account is deleted. Events you posted that were already published stay on the site without your name.", false)
+	case "google-unlink":
+		// Only with a password in place, or the account would be unreachable.
+		if !s.Member.HasPassword() {
+			a.accountBack(w, r, "/account/settings", "Set a password first, or you would have no way to sign in.", true)
+			return
+		}
+		if s.Member.GoogleSub == "" {
+			a.accountBack(w, r, "/account/settings", "No Google account is linked.", true)
+			return
+		}
+		_, _ = a.db.Exec(`UPDATE members SET google_sub = NULL WHERE id = ?`, s.MemberID)
+		a.audit(r, "member.google_unlink", fmt.Sprint(s.MemberID), "")
+		a.accountBack(w, r, "/account/settings", "Google is no longer linked. Sign in with your email address and password.", false)
 	default:
 		a.accountBack(w, r, "/account/settings", "Unknown action.", true)
 	}

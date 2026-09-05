@@ -230,7 +230,7 @@ func (a *App) health(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, 503, "database unavailable")
 		return
 	}
-	a.json(w, 200, map[string]any{"ok": true, "version": a.version, "time": now(), "whatsapp": a.waEnabled(), "facebook": a.fbEnabled()})
+	a.json(w, 200, map[string]any{"ok": true, "version": a.version, "time": now(), "whatsapp": a.waEnabled(), "facebook": a.fbEnabled(), "google": a.googleEnabled()})
 }
 
 func (a *App) getEvents(w http.ResponseWriter, r *http.Request) {

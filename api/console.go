@@ -871,6 +871,9 @@ type systemData struct {
 	MailRecords                                                   []mailRecord
 	MailOK                                                        bool
 	WAOn                                                          bool
+	GoogleOn                                                      bool
+	GoogleClientID, GoogleRedirect                                string
+	MembersGoogle                                                 int
 	WAPhoneID, WAVersion, WALang, WAWebhook, WATemplateNote       string
 	WATemplates                                                   map[string]string
 	WAAdminPhone                                                  string
@@ -890,6 +893,11 @@ func (a *App) systemPage(w http.ResponseWriter, r *http.Request) {
 		d.DBSize = fmtBytes(st.Size())
 	}
 	d.MailMode, d.MailFrom, d.MailHelo = mailMode(a.cfg), a.cfg.MailFrom, a.cfg.MailHelo
+	d.GoogleOn = a.googleEnabled()
+	if d.GoogleOn {
+		d.GoogleClientID, d.GoogleRedirect = a.cfg.GoogleClientID, a.googleRedirectURI()
+		d.MembersGoogle = a.count(`SELECT COUNT(*) FROM members WHERE google_sub IS NOT NULL`)
+	}
 	d.WAOn = a.waEnabled()
 	if d.WAOn {
 		d.WAPhoneID, d.WAVersion, d.WALang = a.wa.phoneID, a.wa.version, a.wa.lang

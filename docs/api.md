@@ -126,7 +126,7 @@ sessions, audited), then remove it.
 | Logs | last 300 requests, mail log (hashes only), audit log, last 500 app log lines |
 | Security | authenticator status, regenerate backup codes, remove authenticator, active sessions with revoke, sign-in history, blocklist |
 | Settings | runtime overrides without restart: digest hour/day, pause digests, watch interval, pause watching, extra notification addresses, announcement banner, maintenance mode, pause submissions/subscriptions/new member accounts, public events window, Facebook automatic posting (approved events + delay, weekend list + day/hour); read-only view of the environment |
-| System | version, uptime, memory, DB size and table counts, housekeeping now, integrity check, WAL checkpoint, test email, WhatsApp configuration + template status + test message, outbound-mail DNS checks, JSON export of everything, snapshots (`VACUUM INTO`, newest 14 kept) with download |
+| System | version, uptime, memory, DB size and table counts, housekeeping now, integrity check, WAL checkpoint, test email, Sign in with Google on/off (client id, redirect URI, members linked), WhatsApp configuration + template status + test message, outbound-mail DNS checks, JSON export of everything, snapshots (`VACUUM INTO`, newest 14 kept) with download |
 
 **Settings the site reacts to.** `/api/events` carries a `site` object
 (`announcement`, `maintenance`, `submissions`, `subscriptions`). The static site
@@ -155,6 +155,7 @@ Copy `api/.env.example` to `api/.env` (mode 600) and fill in:
 | `HS_SMTP_HOST`, `HS_SMTP_PORT`, `HS_SMTP_USER`, `HS_SMTP_PASS` | Optional relay. Leave the host empty for direct delivery (see *Outbound mail*). |
 | `HS_MAIL_IP`, `HS_MAIL_HELO`, `HS_DKIM_SELECTOR` | Public sending address (for SPF and the PTR check), EHLO name (defaults to the API host), DKIM selector (`hs1`; empty disables signing). |
 | `HS_WA_PHONE_ID`, `HS_WA_TOKEN`, `HS_WA_APP_SECRET`, `HS_WA_VERIFY_TOKEN` | WhatsApp Business Platform: sending number id, permanent system-user token, app secret (webhook signature), webhook verify token. All four or none. `HS_WA_WABA_ID` (template status on the System page) and `HS_ADMIN_PHONE` (test button) are optional. See `docs/whatsapp.md`. |
+| `HS_GOOGLE_CLIENT_ID`, `HS_GOOGLE_CLIENT_SECRET` | *Sign in with Google* for member accounts. Both or none; the id must end in `.apps.googleusercontent.com`. Redirect URI is `HS_API_URL/account/google/callback`. See `docs/accounts.md`. |
 | `HS_FB_PAGE_ID`, `HS_FB_PAGE_TOKEN` | Facebook page posting: the numeric page id and a non-expiring Page access token. Both or none. `HS_FB_API_VERSION` defaults to `v22.0`. See `docs/facebook.md`. |
 | `HS_BIND_IP` | Interface the container port binds to on the host (the internal address, never `0.0.0.0`). |
 | `HS_TZ`, `HS_DIGEST_HOUR`, `HS_WEEKLY_DAY`, `HS_WATCH_INTERVAL` | Defaults: `Africa/Johannesburg`, 6, 4 (Thursday), 6h. |
