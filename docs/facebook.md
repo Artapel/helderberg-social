@@ -188,6 +188,19 @@ console (or `api/fb-groups.json`) so it enters the rota.
 | Group | Facebook | Size |
 |---|---|---|
 
+**Tier C: hobby groups, Cape Town-wide (found 5 September 2026).** Post there only when
+the site has a games event or the shop's play nights to point at, never the general "what's on":
+
+| Group | Facebook | Size |
+|---|---|---|
+| Cape Town Board/Card Gaming | `https://www.facebook.com/groups/tablegaming/` | Public 2.8K |
+| Board Gaming & Role Playing in South Africa | `https://www.facebook.com/groups/2910281150/` | Public 3.1K |
+| Dungeons & Dragons Cape Town | `https://www.facebook.com/groups/dungeonsanddragonscapetown/` | Public 1.3K |
+| Warhammer And Miniatures Cape Town | `https://www.facebook.com/groups/170114453136028/` | PRIVATE 795 |
+| Magic: The Gathering - Cape Town | `https://www.facebook.com/groups/120806814632531/` | PRIVATE 1K |
+| Pokémon TCG South Africa | `https://www.facebook.com/groups/pokemontcgza/` | Public 6.1K |
+| Buy Sell Video Games Helderberg | `https://www.facebook.com/groups/1219754824736244/` | Public 4.7K (sales group; low value) |
+
 ## Automatic posting (built 2026-09-04, off until the token is set)
 
 The API can post to the page itself through the Graph API. It is off until `api/.env` has

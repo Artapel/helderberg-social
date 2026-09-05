@@ -13,7 +13,7 @@ import (
 // by hand and carry no markup.
 
 var townNames = map[string]string{"somerset-west": "Somerset West", "strand": "Strand", "gordons-bay": "Gordon's Bay", "sir-lowrys-pass": "Sir Lowry's Pass"}
-var catNames = map[string]string{"running": "Running & walking", "cycling": "Cycling & MTB", "hiking": "Hiking & trails", "water": "Beach & water", "markets": "Markets & food", "wine": "Wine & estates", "community": "Community & service", "family": "Family & kids", "arts": "Arts & culture", "online": "Online groups", "nature": "Parks & nature", "sport": "Sport & fitness", "music": "Music & shows", "faith": "Faith & worship", "camping": "Camping & outdoors"}
+var catNames = map[string]string{"running": "Running & walking", "cycling": "Cycling & MTB", "hiking": "Hiking & trails", "water": "Beach & water", "markets": "Markets & food", "wine": "Wine & estates", "community": "Community & service", "family": "Family & kids", "arts": "Arts & culture", "online": "Online groups", "nature": "Parks & nature", "sport": "Sport & fitness", "music": "Music & shows", "faith": "Faith & worship", "camping": "Camping & outdoors", "games": "Games & hobbies"}
 
 func townName(id string) string {
 	if n, ok := townNames[id]; ok {

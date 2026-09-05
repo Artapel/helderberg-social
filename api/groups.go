@@ -243,6 +243,7 @@ func groupPick(g fbGroup) []string {
 		{"market", "markets"}, {"crafter", "markets"}, {"produce", "markets"},
 		{"wine", "wine"}, {"dining", "wine"}, {"food", "wine"}, {"restaurant", "wine"},
 		{"social", "community"}, {"single", "community"},
+		{"game", "games"}, {"gamer", "games"}, {"hobby", "games"}, {"miniature", "games"}, {"warhammer", "games"}, {"pokemon", "games"},
 	} {
 		if strings.Contains(n, kw.word) {
 			pick = append(pick, kw.cat)

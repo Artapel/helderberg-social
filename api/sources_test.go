@@ -105,7 +105,7 @@ func TestSeedSourcesAndCategories(t *testing.T) {
 	if n < 40 {
 		t.Fatalf("only %d sources seeded", n)
 	}
-	for _, c := range []string{"sport", "music", "faith", "camping"} {
+	for _, c := range []string{"sport", "music", "faith", "camping", "games"} {
 		if !categories[c] || catNames[c] == "" {
 			t.Errorf("category %s missing from the vocabulary or its names", c)
 		}

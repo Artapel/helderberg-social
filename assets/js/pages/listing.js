@@ -35,6 +35,7 @@
     '<dt>Type</dt><dd>' + HS.esc(HS.typeLabel(l.type)) + '</dd>' +
     '<dt>Category</dt><dd><a href="directory.html?cat=' + l.category + '">' + HS.esc(HS.catName(l.category)) + '</a></dd>' +
     '<dt>Town</dt><dd><a href="towns.html#' + l.town + '">' + HS.esc(HS.townName(l.town)) + '</a></dd>' +
+    (l.address ? '<dt>Where</dt><dd>' + HS.esc(l.address) + '</dd>' : "") +
     '<dt>When</dt><dd>' + HS.esc((l.schedule && l.schedule.text) || "Varies") + (days ? '<br><span class="small muted">' + HS.esc(days) + '</span>' : "") + '</dd>' +
     '<dt>Cost</dt><dd>' + HS.esc(HS.costLabel(l.cost) || "Unknown") + '</dd>' +
     '<dt>Who for</dt><dd>' + (l.audience || []).map(function (a) { return HS.esc((HS.audiences[a] || {}).name || a); }).join(", ") + '</dd>' +

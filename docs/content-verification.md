@@ -45,6 +45,32 @@ the page before launch, especially the 4 September opening night.
    (see the README) with their announcement as `link`, empty the schedule days,
    and keep watching their news for the restart.
 
+## Tabletop, card games and miniatures pass, 5 September 2026
+
+Asked for: activities like Imperium Games, The Jokers House, WildStorm Studios /
+Untamed Creations and the Durban Golden Brush, in the Helderberg. What the
+search (web, unplugyourself.co.za's organiser list, and Facebook groups and
+pages as the page profile) found:
+
+- **Imperium Games, Somerset West** (Helderberg Village Walk): the one real
+  tabletop shop in the area, with weekly open play. Listed under the new
+  `games` category with the shop's own schedule; its Facebook events stop in
+  March 2024, so the nights are on the shop's word only. Its events page is a
+  watched source.
+- **WildStorm Studios, Somerset West**: miniature artist and community host
+  (Discord), Untamed Creations resin range, judge/entrant at Golden Brush
+  (Durban Wargaming Club) and Go Figure (Comic Con Africa). Listed as a group.
+- **The Warren, Somerset West** (Meerlust Industrial Park): tabletop shop on
+  unplugyourself.co.za with events to September 2024; its Facebook page is
+  gone and thewarren.co.za is a 2 KB placeholder. Not listed; probably closed.
+- **The Jokers House** is a trading-card shop with Friday play nights but is
+  not in the Helderberg (no address on the site; not found in the area).
+- **No Helderberg board-game club, D&D group, wargaming club or painting
+  meet-up exists on Facebook or the web.** The players use Cape Town-wide
+  groups, listed as joining candidates in `docs/facebook.md`.
+- **Golden Brush** is in Durban and Comic Con Africa is in Johannesburg and
+  Cape Town; neither is a Helderberg event.
+
 Found this way on 5 September 2026: **Somerset West parkrun has been closed
 indefinitely since 29 May 2025** (construction across the course; no
 replacement venue agreed with the City). The site had it as a live Saturday

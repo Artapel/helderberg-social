@@ -9,6 +9,7 @@
   {"url": "https://vergelegen.co.za/vergelegen-trail/", "kind": "html", "label": "Vergelegen Trail season dates", "listing": "vergelegen-trail-guided-hike", "category": "hiking", "town": "somerset-west"},
   {"url": "https://www.helderbergharriers.co.za/", "kind": "html", "label": "Helderberg Harriers", "listing": "helderberg-harriers", "category": "running", "town": "somerset-west"},
   {"url": "https://www.parkrun.co.za/somersetwest/", "kind": "html", "label": "Somerset West parkrun page", "listing": "somerset-west-parkrun", "category": "running", "town": "somerset-west", "retired": "replaced by the news feed below, which reports each new post instead of every page change"},
+  {"url": "https://www.imperiumgames.co.za/events/", "kind": "html", "label": "Imperium Games events (tabletop shop, Somerset West)", "listing": "imperium-games", "category": "games", "town": "somerset-west"},
   {"url": "https://www.parkrun.co.za/somersetwest/feed/", "kind": "list", "label": "Somerset West parkrun news (new posts; paused since May 2025, watching for the restart)", "listing": "somerset-west-parkrun", "category": "running", "town": "somerset-west"},
   {"url": "https://e-clubhouse.org/sites/gordonsbay/", "kind": "html", "label": "Gordon's Bay Yacht Club (e-clubhouse)", "listing": "gordons-bay-yacht-club", "category": "water", "town": "gordons-bay"},
 

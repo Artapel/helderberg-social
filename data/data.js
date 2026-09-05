@@ -72,7 +72,8 @@ window.HS_DATA = {
     { id: "sport",      name: "Sport & fitness",    icon: "⚽", hue: 145 },
     { id: "music",      name: "Music & shows",      icon: "🎭", hue: 310 },
     { id: "faith",      name: "Faith & worship",    icon: "🕊️", hue: 175 },
-    { id: "camping",    name: "Camping & outdoors", icon: "⛺", hue: 80 }
+    { id: "camping",    name: "Camping & outdoors", icon: "⛺", hue: 80 },
+    { id: "games",      name: "Games & hobbies",    icon: "🎲", hue: 265 }
   ],
 
   audiences: [
@@ -86,6 +87,41 @@ window.HS_DATA = {
 
   /* type: "group" (join / recurring), "activity" (drop-in, regular), "place" (venue / outdoors) */
   listings: [
+    {
+      id: "imperium-games",
+      type: "place",
+      name: "Imperium Games",
+      category: "games",
+      town: "somerset-west",
+      summary: "Tabletop games shop with open play nights: board games on Tuesday evenings, trading card games (Magic, Pokémon, One Piece, Star Wars Unlimited) on Wednesdays, tabletop and miniatures games on Thursday afternoons, Pokémon on Fridays. Demo games of Infinity, Warhammer Underworlds, Blood Bowl, Kill Team and Star Wars: Legion; board games to try in the shop. Anyone is welcome to pop in for a game.",
+      schedule: { days: [2, 3, 4, 5, 6], text: "Board games Tue 18:00 · card games Wed 18:00 · tabletop Thu 15:00 · Pokémon Fri; shop Tue-Thu 15:00-22:00, Fri 19:00-22:00, Sat 10:00-15:00" },
+      cost: "free",
+      audience: ["everyone", "families", "beginners"],
+      tags: ["board games", "warhammer", "pokemon", "magic", "dnd", "miniatures"],
+      website: "https://www.imperiumgames.co.za/",
+      source: "https://www.imperiumgames.co.za/about-us/",
+      address: "Helderberg Village Walk, Unit 6B, In The Courtyard, cnr Drama & Caledon Street, Somerset West",
+      coords: [-34.0790, 18.8460], coordsApprox: true,
+      note: "Address, hours and weekly play nights taken from the shop's own About page on 5 Sep 2026. The shop's Facebook events stop in March 2024, so confirm the nights are still running before publishing an event. Play is free; games and cards are for sale.",
+      verified: false
+    },
+    {
+      id: "wildstorm-studios",
+      type: "group",
+      name: "WildStorm Studios: miniature painting community",
+      category: "games",
+      town: "somerset-west",
+      summary: "Somerset West miniature and figure artist who hosts a painting community on Discord, paints commissions, and is behind Untamed Creations, a South African-made resin miniature range. Involved in the Golden Brush competition (Durban Wargaming Club) and Go Figure at Comic Con Africa. The place to ask about painting meet-ups and competitions in the Helderberg.",
+      schedule: { days: [], text: "Online community; competitions announced on the Facebook page" },
+      cost: "free",
+      audience: ["everyone", "beginners"],
+      tags: ["miniatures", "painting", "warhammer", "discord"],
+      website: "https://www.facebook.com/WildStormStudios",
+      source: "https://comicconafrica.co.za/wildstorm/",
+      coords: [-34.0833, 18.8500], coordsApprox: true,
+      note: "wildstormstudios.com was inactive (hosting placeholder) on 5 Sep 2026; the Facebook page is the working link. No regular Helderberg painting meet-up was found anywhere; this is the closest thing to one.",
+      verified: false
+    },
     {
       id: "helderberg-harriers",
       type: "group",
