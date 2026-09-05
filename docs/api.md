@@ -224,19 +224,18 @@ missing PTR costs reputation rather than a 550. The record wanted is
 `mail.helderbergsocial.co.za`, the `HS_MAIL_HELO` name, which resolves to the
 address, so HELO, forward and reverse all agree.
 
-Who sets it: the reverse zone `5.221.41.in-addr.arpa` is **delegated to
-Daisy's own domain controllers** (checked with `dig NS` from a public resolver
-on 2026-09-05: dc01-dc1, dc02-dc1 (SOA), dc03-dc1-bry, dc04-dc1-kzn,
-dc09-dc1-pe and dc02-dc1-cpt under daisy.co.za; `.39` already answers
-`unifi004.daisy.co.za`). So the PTR is added on a Daisy DC, not by the ISP;
-the ISP ticket raised on 2026-09-04 (ECN DR040908) was not needed. On a DC:
+Who sets it: the ISP. Publicly, `5.221.41.in-addr.arpa` is delegated by
+AfriNIC to `ns1`/`ns2.ecntelecoms.com` (`dig +trace` from 1.1.1.1 and
+8.8.8.8, 2026-09-05), and those servers answer NXDOMAIN for `.36` with a zone
+serial of `2022112512`, unchanged since November 2022. The ticket raised with
+ECN on 2026-09-04 (DR040908, "done, allow 24 h") had therefore not reached
+their nameservers a day later; chase it with that serial as evidence.
 
-```powershell
-Add-DnsServerResourceRecordPtr -ZoneName "5.221.41.in-addr.arpa" -Name "36" -PtrDomainName "mail.helderbergsocial.co.za"
-```
-
-Then confirm from outside (`dig -x 41.221.5.36 @1.1.1.1`) and on the System
-page, which shows the PTR check with the rest.
+Do not check this from inside Daisy's network: the corporate resolver carries
+its own copy of the same reverse zone, delegated to the domain controllers
+(dc01-dc1, dc02-dc1 and the branch DCs), which is why a `dig -x` on 111.150
+shows Daisy names for `.39` that the world never sees. The API's checks and
+the System page use public resolvers for this reason.
 
 Checking a real send: address a subscription at the domain
 [mail-tester.com](https://www.mail-tester.com) shows and confirm it; the score
