@@ -49,7 +49,7 @@ var consoleFuncs = template.FuncMap{
 		}
 		return out
 	},
-	"list":      func(v ...string) []string { return v },
+	"list": func(v ...string) []string { return v },
 	"dict": func(kv ...any) map[string]any {
 		m := map[string]any{}
 		for i := 0; i+1 < len(kv); i += 2 {

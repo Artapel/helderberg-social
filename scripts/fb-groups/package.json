@@ -1,0 +1,14 @@
+{
+  "name": "helderberg-social-fb-groups",
+  "private": true,
+  "type": "module",
+  "description": "Posts the day's Helderberg Social batch in the page's Facebook groups (see docs/facebook.md).",
+  "scripts": {
+    "login": "node post.mjs --login",
+    "post": "node post.mjs",
+    "dry": "node post.mjs --dry-run"
+  },
+  "dependencies": {
+    "playwright": "^1.50.0"
+  }
+}

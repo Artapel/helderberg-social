@@ -27,6 +27,8 @@ func (a *App) routes() http.Handler {
 	mux.HandleFunc("GET /api/events", a.getEvents)
 	mux.HandleFunc("GET /api/posts", a.getPosts)
 	mux.HandleFunc("GET /api/ask", a.askAPI)
+	mux.HandleFunc("GET /api/fb/rota", a.rotaGet)
+	mux.HandleFunc("POST /api/fb/rota/result", a.rotaResult)
 	mux.HandleFunc("POST /api/subscribe", a.subscribe)
 	mux.HandleFunc("GET /api/confirm", a.confirm)
 	mux.HandleFunc("GET /api/unsubscribe", a.unsubscribe)
@@ -236,7 +238,7 @@ func (a *App) health(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, 503, "database unavailable")
 		return
 	}
-	a.json(w, 200, map[string]any{"ok": true, "version": a.version, "time": now(), "whatsapp": a.waEnabled(), "facebook": a.fbEnabled(), "logins": a.loginKeys(), "ask_ai": a.cfg.AIURL != ""})
+	a.json(w, 200, map[string]any{"ok": true, "version": a.version, "time": now(), "whatsapp": a.waEnabled(), "facebook": a.fbEnabled(), "logins": a.loginKeys(), "ask_ai": a.cfg.AIURL != "", "fb_rota": a.rotaEnabled()})
 }
 
 func (a *App) getEvents(w http.ResponseWriter, r *http.Request) {

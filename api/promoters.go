@@ -1235,4 +1235,3 @@ func (a *App) promoterOrgs() map[int64]string {
 	}
 	return m
 }
-

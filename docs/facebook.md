@@ -121,7 +121,67 @@ console anyway.
 
 Groups that ship switched off: *What's On West Somerset* (it is Somerset in the UK) and the
 rentals group (join still pending). Macassar and Sir Lowry's Pass groups were left out of the
-list on Corne's instruction (2026-09-04).
+list on Corne's instruction (2026-09-04, repeated 2026-09-05: never post in those).
+
+The closing lines of every post sell three things: the site (`/events.html`), the community
+(the week's events by email, "or WhatsApp" once the number is live, "WhatsApp coming soon"
+until then; `/subscribe.html`) and the free listing for organisers (`/submit.html?kind=event`).
+
+### The runner: posting unattended (built 2026-09-05)
+
+Corne decided on 2026-09-05, with the terms risk stated, that the batch is posted by a script
+on his own laptop rather than by hand. The first four went out the same day through the Chrome
+extension (two posted and pending the groups' admins, two blocked because the page's
+*request to participate* was still pending), and the rest go through the runner.
+
+**What runs where.** The API stays the planner and the record; the browser side is
+`scripts/fb-groups/post.mjs` (Node + Playwright, its own Chromium profile signed in as the
+page). Two doors on the API, both hidden behind the bearer token `HS_FB_ROTA_TOKEN` (24+
+characters; unset = the doors do not exist, wrong token = 404) and reported by
+`/api/health` as `fb_rota`:
+
+| Door | Does |
+|---|---|
+| `GET /api/fb/rota?limit=N` | today's due groups with the post text for each, `N` defaulting to the console's groups-per-day setting; `limit=all` lifts it (cap 100) for a catch-up run |
+| `POST /api/fb/rota/result` `{"id", "outcome", "note"}` | records one group: **posted** counts it and books the next post a cadence away (same as the console's *Mark posted*); **retry** (participation pending, no composer) books it again in 3 days; **blocked** (not a member, group gone) switches it off with the reason; **failed** (the runner broke) moves it one day so it cannot hog the batch. Every outcome lands in the audit log as `fb.group_*`. |
+
+**Setting it up on the laptop (once):**
+
+```
+cd scripts/fb-groups && npm install && npx playwright install chromium
+copy .env.example .env      # paste the same HS_FB_ROTA_TOKEN the server has
+node post.mjs --login       # sign in as yourself, switch to the page profile, close the window
+node post.mjs --dry-run     # opens each due group, reports "could post" / pending / blocked
+node post.mjs               # the day's batch; --limit 12 or --limit all for a catch-up
+```
+
+The profile lives in `%LOCALAPPDATA%\helderberg-social\fb-profile`; logs and failure
+screenshots in `scripts/fb-groups/logs/`. The scheduled task **Helderberg Social FB groups**
+(`scripts/fb-groups/install-task.ps1`) runs `node post.mjs` at 09:30 Monday to Saturday while
+Corne is logged on; the laptop being off that day simply means the groups stay due and the next
+run takes them.
+
+**What the runner will not do.** It never types a password (the sign-in is a person's job,
+once). It posts only when the composer names the page (`HS_FB_PAGE_NAME`, default "Helderberg
+Social"); a composer that would post as a person is reported as *failed* and left alone. It
+stops the whole run, with a screenshot, the moment Facebook shows a login, checkpoint or
+security check. It paces itself like a person: 4 to 8 seconds on a group page before acting,
+typing at keyboard speed, 60 to 150 seconds between groups, and only the console's
+groups-per-day unless told `--limit`. Headless is off by default (`HS_FB_HEADLESS=1` turns it
+on); Facebook is warier of a headless browser and the window costs nothing.
+
+**How it reads a group page.** URL on `/login`, `/checkpoint` or `/recover` = stop. "Your
+request to participate is pending approval" = retry. "This content isn't available" or a
+*Join group* button with no *Joined* = blocked. Then it clicks *Write something...*, waits for
+the *Create post* dialog, checks the page name in its header, types the text line by line
+(Enter between lines), waits a few seconds for the link preview, presses *Post*, waits for the
+dialog to close, and calls it posted when "Your post is pending" or the post's own first line
+shows in the feed within 25 seconds. Anything else is *failed* with the reason and a screenshot.
+
+**Claude Code and the runner.** The runner needs no model: it is a deterministic script, which
+is what makes it cheap and safe to schedule. A Claude Code session can still run it
+(`node scripts/fb-groups/post.mjs`) or read `logs/` after a run, but must never sign in, never
+post as a person and never post in the Macassar or Sir Lowry's Pass groups.
 
 ### More groups worth joining (found 2026-09-04, NOT joined yet)
 

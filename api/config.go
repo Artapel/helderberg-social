@@ -46,6 +46,7 @@ type Config struct {
 	WAPhoneID, WAWABAID, WAToken, WAAppSecret, WAVerifyToken string
 	WAVersion, WALang, WATemplateConfirm, WATemplateDigest   string
 	AIURL, AIModel, AIKey                                    string // optional Ollama-compatible model for free-text questions (ask.go)
+	RotaToken                                                string // bearer token for the groups runner (rota.go); empty = no runner doors
 	// Facebook page posting (Graph API). Page id + a Page access token; with
 	// neither set posting is off and the console says so.
 	FBPageID, FBToken, FBVersion string
@@ -89,7 +90,8 @@ func loadConfig() (*Config, error) {
 		WATemplateConfirm: env("HS_WA_TEMPLATE_CONFIRM", "hs_confirm"), WATemplateDigest: env("HS_WA_TEMPLATE_DIGEST", "hs_digest"),
 		FBPageID: env("HS_FB_PAGE_ID", ""), FBToken: env("HS_FB_PAGE_TOKEN", ""), FBVersion: env("HS_FB_API_VERSION", "v22.0"),
 		AIURL: strings.TrimRight(env("HS_AI_URL", ""), "/"), AIModel: env("HS_AI_MODEL", "llama3.1:8b"), AIKey: env("HS_AI_KEY", ""),
-		OAuth: map[string]oauthCreds{},
+		RotaToken: strings.TrimSpace(env("HS_FB_ROTA_TOKEN", "")),
+		OAuth:     map[string]oauthCreds{},
 	}
 	for _, p := range oauthProviders {
 		key := "HS_" + strings.ToUpper(p.Key) + "_CLIENT_"
@@ -134,6 +136,9 @@ func loadConfig() (*Config, error) {
 		if !waVersionRe.MatchString(c.WAVersion) || !waTemplateRe.MatchString(c.WATemplateConfirm) || !waTemplateRe.MatchString(c.WATemplateDigest) {
 			return nil, fmt.Errorf("HS_WA_API_VERSION must look like v22.0 and template names must be lowercase letters, digits and underscores")
 		}
+	}
+	if c.RotaToken != "" && len(c.RotaToken) < 24 {
+		return nil, fmt.Errorf("HS_FB_ROTA_TOKEN must be at least 24 characters (openssl rand -hex 24), or empty to disable the runner")
 	}
 	if c.AIURL != "" && !strings.HasPrefix(c.AIURL, "http://") && !strings.HasPrefix(c.AIURL, "https://") {
 		return nil, fmt.Errorf("HS_AI_URL must be an http(s) base URL of an Ollama-compatible server, e.g. http://192.168.50.240:11434")

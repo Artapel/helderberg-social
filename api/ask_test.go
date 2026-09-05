@@ -74,11 +74,11 @@ func TestReadQuestion(t *testing.T) {
 	sat := time.Date(2026, 9, 5, 0, 0, 0, 0, loc) // a Saturday
 	wed := time.Date(2026, 9, 9, 0, 0, 0, 0, loc)
 	cases := []struct {
-		in                              string
-		now                             time.Time
-		period, town, cat, wants        string
-		free                            bool
-		from, to                        string
+		in                       string
+		now                      time.Time
+		period, town, cat, wants string
+		free                     bool
+		from, to                 string
 	}{
 		{"@helderberg today", wed, "today", "", "", "events", false, "2026-09-09", "2026-09-09"},
 		{"@Helderberg Social: Week", wed, "week", "", "", "events", false, "2026-09-09", "2026-09-16"},

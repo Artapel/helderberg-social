@@ -300,7 +300,14 @@ func (a *App) groupText(g fbGroup, n time.Time) string {
 	} else {
 		b.WriteString("\n")
 	}
-	fmt.Fprintf(&b, "\nEverything, with details and a map: %s/events.html\nRun a club, market or venue? Add your event free: %s/submit.html?kind=event\nWeekly what's-on email: %s/subscribe.html", a.cfg.SiteURL, a.cfg.SiteURL, a.cfg.SiteURL)
+	// The closing lines sell the three things the post is for: the site,
+	// the community (the weekly list by email, and on WhatsApp once the
+	// number is live), and the free listing for organisers.
+	channel := "by email (WhatsApp coming soon)"
+	if a.waEnabled() {
+		channel = "by email or WhatsApp"
+	}
+	fmt.Fprintf(&b, "\nEverything, with details and a map: %s/events.html\nJoin the community: the week's events %s: %s/subscribe.html\nRun a club, market or venue? Add your event free: %s/submit.html?kind=event", a.cfg.SiteURL, channel, a.cfg.SiteURL, a.cfg.SiteURL)
 	return b.String()
 }
 

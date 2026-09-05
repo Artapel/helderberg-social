@@ -255,14 +255,20 @@ var askSplit = regexp.MustCompile(`[^\p{L}\p{N}']+`)
 
 var askStop = set("the", "a", "an", "is", "are", "there", "any", "what", "whats", "what's", "on", "in", "at", "for", "to", "of", "and", "or", "me", "i", "we", "you", "can", "do", "does", "please", "pls", "asb", "show", "tell", "find", "list", "give", "hi", "hello", "hey", "good", "morning", "afternoon", "evening", "want", "looking", "something", "anything", "things", "thing", "stuff", "with", "near", "around", "this", "that", "next", "going", "happening", "up", "about", "know", "like", "some", "my", "our", "us", "it", "its", "be", "from", "by", "wat", "waar", "wanneer", "daar", "die", "en", "of", "vir", "ek", "ons", "hulle", "sal", "kan")
 
-var askTownWords = []struct{ re *regexp.Regexp; id string }{
+var askTownWords = []struct {
+	re *regexp.Regexp
+	id string
+}{
 	{regexp.MustCompile(`(?i)\bsomerset(\s*-?\s*west)?\b|\bsw\b`), "somerset-west"},
 	{regexp.MustCompile(`(?i)\bstrand\b`), "strand"},
 	{regexp.MustCompile(`(?i)\bgordon'?s?\s*-?\s*bay\b|\bgordons\b|\bgb\b`), "gordons-bay"},
 	{regexp.MustCompile(`(?i)\bsir\s*lowry'?s?(\s*pass)?\b|\bslp\b`), "sir-lowrys-pass"},
 }
 
-var askCatWords = []struct{ re *regexp.Regexp; id string }{
+var askCatWords = []struct {
+	re *regexp.Regexp
+	id string
+}{
 	{regexp.MustCompile(`(?i)\b(run|runs|running|runner|runners|walk|walks|walking|walker|walkers|parkrun|jog|jogging|hardloop|stap)\b`), "running"},
 	{regexp.MustCompile(`(?i)\b(cycle|cycling|cyclist|cyclists|mtb|bike|bikes|biking|mountain\s*bik\w*|fietsry|fiets)\b`), "cycling"},
 	{regexp.MustCompile(`(?i)\b(hike|hikes|hiking|hiker|hikers|trail|trails|stap\w*roete)\b`), "hiking"},
@@ -708,8 +714,8 @@ func (a *App) aiAnswer(q askQuery, now time.Time, events []Event, lists []Listin
 	}
 	system := "You are Helderberg Social's WhatsApp helper for Somerset West, Strand, Gordon's Bay and Sir Lowry's Pass. Answer the question using ONLY the site content given. If the content does not answer it, say so and point to " + a.cfg.SiteURL + ". Never invent an event, place, time, price or phone number. Plain text for WhatsApp: short lines, • bullets, *bold* for names, no markdown headings, under 900 characters, include the link for anything you name. Answer in the language of the question (English or Afrikaans)."
 	body := map[string]any{
-		"model":  a.cfg.AIModel,
-		"stream": false,
+		"model":   a.cfg.AIModel,
+		"stream":  false,
 		"options": map[string]any{"temperature": 0.2, "num_ctx": 8192},
 		"messages": []map[string]string{
 			{"role": "system", "content": system},
