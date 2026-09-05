@@ -1,10 +1,12 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -355,5 +357,56 @@ func TestGoogleConfigValidation(t *testing.T) {
 	t.Setenv("HS_GOOGLE_CLIENT_ID", "id.apps.googleusercontent.com")
 	if c, err := loadConfig(); err != nil || c.GoogleClientID == "" {
 		t.Fatalf("valid pair rejected: %v", err)
+	}
+}
+
+// A v7 database has a members table without google_sub. Start-up must add
+// the column before it builds the unique index (this exact sequence took the
+// live API down on 2026-09-05 when the index sat in the base schema list).
+func TestMigrateMembersV7ToV8(t *testing.T) {
+	dir := t.TempDir()
+	db, err := sql.Open("sqlite", filepath.Join(dir, "helderberg.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
+		`INSERT INTO meta VALUES('schema_version','7')`,
+		`CREATE TABLE members (id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE, name TEXT NOT NULL, pw_hash TEXT NOT NULL, created_at TEXT NOT NULL, verified_at TEXT, last_login_at TEXT, status TEXT NOT NULL DEFAULT 'active', ip_hash TEXT NOT NULL DEFAULT '')`,
+		`INSERT INTO members(id, email, name, pw_hash, created_at, verified_at) VALUES(3,'old@example.org','Old','$argon2id$x','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`,
+	} {
+		if _, err := db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	db, err = openDB(dir)
+	if err != nil {
+		t.Fatalf("openDB on a v7 database: %v", err)
+	}
+	defer db.Close()
+	if !hasColumn(db, "members", "google_sub") {
+		t.Fatal("google_sub not added")
+	}
+	var n int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='members_google'`).Scan(&n)
+	if n != 1 {
+		t.Fatal("members_google index missing")
+	}
+	// existing rows are untouched and unlinked; two unlinked rows may coexist
+	var sub sql.NullString
+	_ = db.QueryRow(`SELECT google_sub FROM members WHERE id = 3`).Scan(&sub)
+	if sub.Valid {
+		t.Fatalf("old row got a google_sub: %v", sub)
+	}
+	if _, err := db.Exec(`INSERT INTO members(email, name, pw_hash, created_at) VALUES('two@example.org','Two','h','x')`); err != nil {
+		t.Fatal(err)
+	}
+	// but a Google subject is unique
+	if _, err := db.Exec(`UPDATE members SET google_sub = 'g-1'`); err == nil {
+		t.Fatal("duplicate google_sub accepted")
+	}
+	if err := migrate(db); err != nil {
+		t.Fatal(err)
 	}
 }

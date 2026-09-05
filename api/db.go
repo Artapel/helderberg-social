@@ -72,7 +72,6 @@ var schema = []string{
 		ip_hash TEXT NOT NULL DEFAULT '',
 		google_sub TEXT
 	)`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS members_google ON members(google_sub)`,
 	`CREATE TABLE IF NOT EXISTS member_sessions (
 		id_hash TEXT PRIMARY KEY,
 		member_id INTEGER NOT NULL,
@@ -254,10 +253,15 @@ func migrate(db *sql.DB) error {
 	}
 	// v8: members may sign in with Google; the Google subject links the
 	// account. NULL for everyone else, and the unique index ignores NULLs.
+	// The index lives here, not in the base schema list, because on an older
+	// database the column does not exist until this step has run.
 	if !hasColumn(db, "members", "google_sub") {
 		if _, err := db.Exec(`ALTER TABLE members ADD COLUMN google_sub TEXT`); err != nil {
 			return fmt.Errorf("migrate members.google_sub: %w", err)
 		}
+	}
+	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS members_google ON members(google_sub)`); err != nil {
+		return fmt.Errorf("migrate members_google index: %w", err)
 	}
 	return nil
 }
