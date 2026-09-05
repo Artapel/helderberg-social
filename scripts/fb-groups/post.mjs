@@ -39,6 +39,7 @@ const HEADLESS = process.env.HS_FB_HEADLESS === "1";
 const PAUSE_MIN = num(process.env.HS_FB_PAUSE_MIN, 60);
 const PAUSE_MAX = num(process.env.HS_FB_PAUSE_MAX, 150);
 const PAGE_NAME = process.env.HS_FB_PAGE_NAME || "Helderberg Social"; // what the composer must say
+const PAGE_URL = (process.env.HS_FB_PAGE_URL || "").replace(/\/+$/, ""); // what /me must resolve to; empty = any URL containing "helderberg"
 const LOGS = path.join(here, "logs");
 
 const args = process.argv.slice(2);
@@ -102,6 +103,19 @@ async function openBrowser() {
   });
 }
 
+// Facebook's front door redirects a fresh profile once or twice (locale,
+// login, checkpoint), which Chromium reports as net::ERR_ABORTED on the
+// first navigation. That is not a failure; settle and carry on.
+async function home(page) {
+  try {
+    await page.goto("https://www.facebook.com/", { waitUntil: "domcontentloaded", timeout: 45000 });
+  } catch (e) {
+    if (!/ERR_ABORTED|interrupted by another navigation/i.test(String(e.message))) throw e;
+    await page.waitForLoadState("domcontentloaded", { timeout: 30000 }).catch(() => {});
+  }
+  await sleep(2000);
+}
+
 async function signedIn(ctx) {
   const cookies = await ctx.cookies("https://www.facebook.com");
   return cookies.some((c) => c.name === "c_user");
@@ -110,20 +124,40 @@ async function signedIn(ctx) {
 async function login() {
   const ctx = await openBrowser();
   const page = ctx.pages()[0] || (await ctx.newPage());
-  await page.goto("https://www.facebook.com/", { waitUntil: "domcontentloaded" });
-  console.log("\nSign in to Facebook in the window, then switch to the page profile (top-right avatar -> the Helderberg Social page).");
-  console.log("This script never types a password. Waiting up to 15 minutes; close the window when done.\n");
+  await home(page);
+  console.log("\nSign in to Facebook in the window, then switch to the page profile (top-right avatar -> See all profiles -> the Helderberg Social page).");
+  console.log("This script never types a password. It reports who the session is every few seconds; close the window once it says the page.\n");
   const until = Date.now() + 15 * 60 * 1000;
-  while (Date.now() < until) {
-    if (page.isClosed()) break;
+  let last = "";
+  while (Date.now() < until && !page.isClosed()) {
     if (await signedIn(ctx)) {
-      console.log("Signed in. The profile is saved at " + PROFILE);
-      await sleep(3000);
-      break;
+      const who = await identity(ctx);
+      if (who !== last) {
+        last = who;
+        const isPage = PAGE_URL ? who === PAGE_URL : /helderberg/i.test(who);
+        console.log(`Signed in as ${who}${isPage ? "  <- the page, good; close the window" : "  <- a person: switch to the page profile now"}`);
+      }
     }
-    await sleep(2000);
+    await sleep(12000);
   }
   await ctx.close().catch(() => {});
+  console.log("Profile saved at " + PROFILE);
+}
+
+// identity is the profile the session acts as: /me lands on its URL
+// (a bare HTTP request gets a 400, so it has to be a real navigation). It
+// uses its own tab so the visible one is left alone during --login.
+async function identity(ctx) {
+  const p = await ctx.newPage();
+  try {
+    await p.goto("https://www.facebook.com/me", { waitUntil: "domcontentloaded", timeout: 30000 }).catch(() => {});
+    await sleep(4000);
+    return p.url().replace(/[?#].*$/, "").replace(/\/+$/, "");
+  } catch {
+    return "";
+  } finally {
+    await p.close().catch(() => {});
+  }
 }
 
 // What the group page says about the page's standing there.
@@ -205,9 +239,14 @@ async function run() {
   const ctx = await openBrowser();
   const page = ctx.pages()[0] || (await ctx.newPage());
   try {
-    await page.goto("https://www.facebook.com/", { waitUntil: "domcontentloaded" });
+    await home(page);
     await sleep(3000);
     if (!(await signedIn(ctx))) throw new Error("the browser profile is not signed in; run: node post.mjs --login");
+    const who = await identity(ctx);
+    log(`session is ${who || "unknown"}`);
+    if (PAGE_URL ? who !== PAGE_URL : !/helderberg/i.test(who)) {
+      throw new Error(`the session is a person, not the page (${who}); run: node post.mjs --login and switch to the page profile`);
+    }
 
     let n = 0;
     for (const g of rota.groups) {
