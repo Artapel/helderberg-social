@@ -252,62 +252,101 @@ func groupPick(g fbGroup) []string {
 	return pick
 }
 
-// groupText writes the post for one group: lead, up to eight upcoming
-// approved events (the group's own town and favourite categories first),
-// and the site links. The text is meant to be pasted as-is.
+// groupLinks is the block every group post carries: the website, the
+// Facebook page and the WhatsApp group (or, until its invite link is set on
+// the console, the subscribe page). These three are what the posts are for.
+func (a *App) groupLinks() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Website, with every event, a map and the clubs: %s\n", a.cfg.SiteURL)
+	if u := a.setting("fb_page_url"); u != "" {
+		fmt.Fprintf(&b, "Follow the Facebook page for daily updates: %s\n", u)
+	}
+	if u := a.setting("whatsapp_group_url"); u != "" {
+		fmt.Fprintf(&b, "Join the WhatsApp community group: %s\n", u)
+	} else {
+		channel := "by email (WhatsApp coming soon)"
+		if a.waEnabled() {
+			channel = "by email or WhatsApp"
+		}
+		fmt.Fprintf(&b, "Join the community and get the week's events %s: %s/subscribe.html\n", channel, a.cfg.SiteURL)
+	}
+	return b.String()
+}
+
+// groupEvents lists up to max upcoming approved events for a group, the
+// group's own town and favourite categories first. Empty when nothing is on.
+func (a *App) groupEvents(g fbGroup, n time.Time, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	from := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, a.cfg.TZ)
+	evs, _ := a.approvedEvents(from, 30)
+	if len(evs) == 0 {
+		return ""
+	}
+	pick := groupPick(g)
+	score := func(e Event) int {
+		s := 0
+		if g.Town != "" && e.Town == g.Town {
+			s += 2
+		}
+		for _, c := range pick {
+			if e.Category == c {
+				s += 3
+			}
+		}
+		return s
+	}
+	// Stable partial sort: best matches first, then by date as approvedEvents gave them.
+	sorted := append([]Event(nil), evs...)
+	for i := 1; i < len(sorted); i++ {
+		for j := i; j > 0 && score(sorted[j]) > score(sorted[j-1]); j-- {
+			sorted[j], sorted[j-1] = sorted[j-1], sorted[j]
+		}
+	}
+	var b strings.Builder
+	for i, e := range sorted {
+		if i == max {
+			fmt.Fprintf(&b, "…and %d more on the site.\n", len(sorted)-max)
+			break
+		}
+		line := "• " + fmtDate(e.Date) + ": " + e.Title + " (" + townName(e.Town) + ")"
+		if e.Time != "" {
+			line += " " + e.Time
+		}
+		if e.Cost != "" && e.Cost != "varies" {
+			line += " · " + e.Cost
+		}
+		b.WriteString(line + "\n")
+	}
+	return b.String()
+}
+
+// groupText writes the post for one group. The text is meant to be pasted
+// as-is.
+//
+// A group's FIRST post is an introduction: the lead by kind, then the three
+// links (website, Facebook page, WhatsApp group) up front, then only a few
+// events (the console's "events in a first post", default 3) as a taste.
+// Later posts lead with the month's events and close with the same links.
 func (a *App) groupText(g fbGroup, n time.Time) string {
 	var b strings.Builder
 	b.WriteString(groupLead(g.Kind, g.Name))
-	from := time.Date(n.Year(), n.Month(), n.Day(), 0, 0, 0, 0, a.cfg.TZ)
-	evs, _ := a.approvedEvents(from, 30)
-	if len(evs) > 0 {
-		pick := groupPick(g)
-		score := func(e Event) int {
-			s := 0
-			if g.Town != "" && e.Town == g.Town {
-				s += 2
-			}
-			for _, c := range pick {
-				if e.Category == c {
-					s += 3
-				}
-			}
-			return s
+	b.WriteString("\n\n")
+	submit := fmt.Sprintf("Run a club, market or venue? Add your event free: %s/submit.html?kind=event", a.cfg.SiteURL)
+	if g.Posts == 0 {
+		b.WriteString(a.groupLinks())
+		if evs := a.groupEvents(g, n, a.settingInt("fb_groups_events")); evs != "" {
+			b.WriteString("\nA taste of what's coming up:\n" + evs)
 		}
-		// Stable partial sort: best matches first, then by date as approvedEvents gave them.
-		sorted := append([]Event(nil), evs...)
-		for i := 1; i < len(sorted); i++ {
-			for j := i; j > 0 && score(sorted[j]) > score(sorted[j-1]); j-- {
-				sorted[j], sorted[j-1] = sorted[j-1], sorted[j]
-			}
-		}
-		const max = 8
-		fmt.Fprintf(&b, "\n\nComing up in the next month:\n")
-		for i, e := range sorted {
-			if i == max {
-				fmt.Fprintf(&b, "…and %d more on the site.\n", len(sorted)-max)
-				break
-			}
-			line := "• " + fmtDate(e.Date) + ": " + e.Title + " (" + townName(e.Town) + ")"
-			if e.Time != "" {
-				line += " " + e.Time
-			}
-			if e.Cost != "" && e.Cost != "varies" {
-				line += " · " + e.Cost
-			}
-			b.WriteString(line + "\n")
-		}
-	} else {
-		b.WriteString("\n")
+		b.WriteString("\n" + submit)
+		return b.String()
 	}
-	// The closing lines sell the three things the post is for: the site,
-	// the community (the weekly list by email, and on WhatsApp once the
-	// number is live), and the free listing for organisers.
-	channel := "by email (WhatsApp coming soon)"
-	if a.waEnabled() {
-		channel = "by email or WhatsApp"
+	if evs := a.groupEvents(g, n, 8); evs != "" {
+		b.WriteString("Coming up in the next month:\n" + evs + "\n")
 	}
-	fmt.Fprintf(&b, "\nEverything, with details and a map: %s/events.html\nJoin the community: the week's events %s: %s/subscribe.html\nRun a club, market or venue? Add your event free: %s/submit.html?kind=event", a.cfg.SiteURL, channel, a.cfg.SiteURL, a.cfg.SiteURL)
+	b.WriteString(a.groupLinks())
+	b.WriteString(submit)
 	return b.String()
 }
 

@@ -265,12 +265,39 @@ func TestGroupsSeedAndRota(t *testing.T) {
 	must(t, err)
 	mammas := a.groups(`fb_id = '654371487965184'`)[0]
 	text := a.groupText(mammas, now)
-	if !strings.Contains(text, "For everyone in HELDERBERG MAMMAS") || !strings.Contains(text, "/events.html") || !strings.Contains(text, "/submit.html?kind=event") {
-		t.Fatalf("mammas text:\n%s", text)
+	// A first post (posts = 0) introduces the three links BEFORE any events
+	// and lists only a few events (default 3); no WhatsApp link set yet, so
+	// it points to the subscribe page.
+	for _, want := range []string{"For everyone in HELDERBERG MAMMAS", a.cfg.SiteURL + "\n", "Follow the Facebook page for daily updates: https://www.facebook.com/helderbergsocial", "Join the community and get the week's events by email (WhatsApp coming soon): " + a.cfg.SiteURL + "/subscribe.html", "A taste of what's coming up:", "/submit.html?kind=event"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("mammas first post lacks %q:\n%s", want, text)
+		}
+	}
+	if strings.Index(text, "Follow the Facebook page") > strings.Index(text, "Kids fun day") {
+		t.Fatalf("first post must put the links before the events:\n%s", text)
 	}
 	if strings.Index(text, "Kids fun day") > strings.Index(text, "Wine evening") {
 		t.Fatalf("family event should lead for a parents' group:\n%s", text)
 	}
+	// With the WhatsApp invite link set on the console it replaces the subscribe line.
+	must(t, a.metaSet("set:whatsapp_group_url", "https://chat.whatsapp.com/ABC123"))
+	if wt := a.groupText(mammas, now); !strings.Contains(wt, "Join the WhatsApp community group: https://chat.whatsapp.com/ABC123") || strings.Contains(wt, "/subscribe.html") {
+		t.Fatalf("whatsapp link should replace the subscribe line:\n%s", wt)
+	}
+	// "events in a first post" 0 drops the taste list entirely.
+	must(t, a.metaSet("set:fb_groups_events", "0"))
+	if zt := a.groupText(mammas, now); strings.Contains(zt, "Kids fun day") || strings.Contains(zt, "A taste") {
+		t.Fatalf("first post with 0 events should carry no list:\n%s", zt)
+	}
+	must(t, a.metaSet("set:fb_groups_events", "3"))
+	// A later post (posts > 0) leads with the month's events and closes with the same links.
+	later := mammas
+	later.Posts = 2
+	lt := a.groupText(later, now)
+	if !strings.Contains(lt, "Coming up in the next month:") || strings.Index(lt, "Kids fun day") > strings.Index(lt, "Follow the Facebook page") || !strings.Contains(lt, "chat.whatsapp.com/ABC123") {
+		t.Fatalf("later post shape:\n%s", lt)
+	}
+	must(t, a.metaSet("set:whatsapp_group_url", ""))
 	market := a.groups(`kind = 'market' AND enabled = 1`)[0]
 	if mt := a.groupText(market, now); !strings.HasPrefix(mt, "Not a sale, a free local resource") {
 		t.Fatalf("market lead:\n%s", mt)

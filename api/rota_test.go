@@ -85,7 +85,7 @@ func TestRotaHandsOutDueGroupsAndRecordsResults(t *testing.T) {
 		t.Fatal("rota must not be cached")
 	}
 	g := got.Groups[0]
-	if g.ID == 0 || g.FBID == "" || !strings.HasPrefix(g.URL, "https://www.facebook.com/groups/") || !strings.Contains(g.Text, "helderbergsocial.co.za/events.html") || !strings.Contains(g.Text, "Join the community") {
+	if g.ID == 0 || g.FBID == "" || !strings.HasPrefix(g.URL, "https://www.facebook.com/groups/") || !strings.Contains(g.Text, "https://helderbergsocial.co.za") || !strings.Contains(g.Text, "Follow the Facebook page") || !strings.Contains(g.Text, "Join the community") {
 		t.Fatalf("group shape: %+v", g)
 	}
 	// "all" lifts the day's cap.

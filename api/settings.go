@@ -41,6 +41,9 @@ var settingDefs = []settingDef{
 	{Key: "fb_groups_remind", Label: "Facebook groups: daily reminder email", Help: "Each morning (not Sundays) that groups are due, email the admin the day's batch with the post text ready to paste. Nothing is posted automatically.", Kind: "bool"},
 	{Key: "fb_groups_per_day", Label: "Facebook groups: groups per day", Help: "How many due groups one reminder lists. 1-20; a few a day keeps the page off Facebook's spam radar.", Kind: "int"},
 	{Key: "fb_groups_hour", Label: "Facebook groups: reminder hour (local)", Help: "Hour of the day, 0-23.", Kind: "int"},
+	{Key: "fb_page_url", Label: "Facebook groups: the page's address", Help: "Put in every group post as \"Follow the page\". https://www.facebook.com/…", Kind: "text"},
+	{Key: "whatsapp_group_url", Label: "Facebook groups: WhatsApp group invite link", Help: "The community group's invite link (https://chat.whatsapp.com/…), put in every group post as \"Join the WhatsApp group\". Empty = the post points to the subscribe page instead.", Kind: "text"},
+	{Key: "fb_groups_events", Label: "Facebook groups: events in a first post", Help: "How many upcoming events a group's first post lists under the links. 0-8; later posts list up to 8.", Kind: "int"},
 }
 
 func (a *App) settingDefault(key string) string {
@@ -57,6 +60,10 @@ func (a *App) settingDefault(key string) string {
 		return "4"
 	case "fb_groups_hour":
 		return "8"
+	case "fb_page_url":
+		return "https://www.facebook.com/helderbergsocial"
+	case "fb_groups_events":
+		return "3"
 	case "maintenance_text":
 		return "We are doing a little maintenance. Please try again in a few minutes."
 	case "events_window_days":
@@ -135,6 +142,10 @@ func (a *App) saveSettings(form map[string]string) (string, error) {
 				if n < 1 || n > 20 {
 					return "", fmt.Errorf("Facebook groups per day must be 1-20")
 				}
+			case "fb_groups_events":
+				if n < 0 || n > 8 {
+					return "", fmt.Errorf("events in a first post must be 0-8")
+				}
 			}
 			v = fmt.Sprint(n)
 		case "select-day":
@@ -153,6 +164,17 @@ func (a *App) saveSettings(form map[string]string) (string, error) {
 						return "", fmt.Errorf("announcement link must be a full http(s) address")
 					}
 					v = u
+				}
+			case "fb_page_url":
+				if v == "" {
+					v = a.settingDefault(d.Key) // blank means the page itself
+				}
+				if !strings.HasPrefix(v, "https://www.facebook.com/") && !strings.HasPrefix(v, "https://facebook.com/") {
+					return "", fmt.Errorf("the page address must start with https://www.facebook.com/")
+				}
+			case "whatsapp_group_url":
+				if v != "" && !strings.HasPrefix(v, "https://chat.whatsapp.com/") {
+					return "", fmt.Errorf("a WhatsApp invite link starts with https://chat.whatsapp.com/")
 				}
 			case "notify_extra":
 				var keep []string

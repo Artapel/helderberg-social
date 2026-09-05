@@ -123,9 +123,26 @@ Groups that ship switched off: *What's On West Somerset* (it is Somerset in the 
 rentals group (join still pending). Macassar and Sir Lowry's Pass groups were left out of the
 list on Corne's instruction (2026-09-04, repeated 2026-09-05: never post in those).
 
-The closing lines of every post sell three things: the site (`/events.html`), the community
-(the week's events by email, "or WhatsApp" once the number is live, "WhatsApp coming soon"
-until then; `/subscribe.html`) and the free listing for organisers (`/submit.html?kind=event`).
+**What a post says (changed 2026-09-05).** The posts exist to advertise three things: the
+website, the Facebook page and the WhatsApp community group. Corne stopped the first run the
+same day because the text read as an events ad with the links as an afterthought, so the shape
+is now:
+
+- **A group's first post** (`posts = 0`): the lead by kind, then straight away the three links
+  (the site's front page; "Follow the Facebook page" from the **Facebook groups: the page's
+  address** setting, default `https://www.facebook.com/helderbergsocial`; "Join the WhatsApp
+  community group" from the **WhatsApp group invite link** setting), then "A taste of what's
+  coming up" with only a few events (**events in a first post**, 0-8, default 3), then the free
+  listing line for organisers (`/submit.html?kind=event`).
+- **Later posts** (`posts > 0`): "Coming up in the next month" with up to eight events first,
+  then the same three links and the organisers' line.
+
+Until the WhatsApp invite link is pasted on the Settings page the WhatsApp line is replaced
+by the subscribe page ("the week's events by email (WhatsApp coming soon)", "or WhatsApp"
+once the Cloud API number is live). The link must start with `https://chat.whatsapp.com/`;
+the page address must start with `https://www.facebook.com/` (blank = the default). The
+seven posts that went out before the change (2026-09-05, by hand and the first two runner
+runs) are in the old events-first shape; those groups get the new shape at their next turn.
 
 ### The runner: posting unattended (built 2026-09-05)
 
@@ -182,6 +199,13 @@ shows in the feed within 25 seconds. Anything else is *failed* with the reason a
 is what makes it cheap and safe to schedule. A Claude Code session can still run it
 (`node scripts/fb-groups/post.mjs`) or read `logs/` after a run, but must never sign in, never
 post as a person and never post in the Macassar or Sir Lowry's Pass groups.
+
+**The log.** Every run appends to `scripts/fb-groups/logs/YYYY-MM-DD.log` (one line per step,
+failure screenshots as `fail-<id>-<time>.png` beside it). `node report.mjs [YYYY-MM-DD]
+[--out file]` turns a day's log into a Markdown table per run (time, group, kind, outcome,
+note, what the API recorded) with day totals; the day's report is committed under
+`docs/social/groups-log-YYYY-MM-DD.md` when a run is worth keeping. The `logs/` folder itself
+is gitignored.
 
 ### More groups worth joining (found 2026-09-04, NOT joined yet)
 
