@@ -477,9 +477,15 @@ func (a *App) waInbound(from, typ, text, button string) {
 			_ = a.wa.sendText(from, "This number has no pending subscription. Sign up at "+a.cfg.SiteURL+"/subscribe.html and we'll send a Confirm button.")
 		}
 	default:
-		// Anything else: one polite pointer, no conversation. It is inside the
-		// 24h window (they just wrote to us) so a plain text is allowed.
-		_ = a.wa.sendText(from, "This is Helderberg Social's automated what's-on service. Reply STOP to unsubscribe, or visit "+a.cfg.SiteURL+" to change what you receive. We don't read replies here.")
+		// Anything else is a question about what is on: "today", "week",
+		// "markets in Strand", "@helderberg weekend". Answered from the site's
+		// content (ask.go). It is inside the 24h window (they just wrote to
+		// us) so a plain text is allowed. Buttons without a known payload get
+		// the help text.
+		if typ != "text" {
+			text = "help"
+		}
+		a.waAnswer(from, text)
 	}
 }
 
