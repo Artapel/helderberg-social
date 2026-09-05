@@ -45,6 +45,28 @@ the page before launch, especially the 4 September opening night.
    (see the README) with their announcement as `link`, empty the schedule days,
    and keep watching their news for the restart.
 
+## Outdoor and adventure pass, 5 September 2026
+
+Asked for: archery, horse riding, ziplining, fishing, beach clean-ups, fire
+dancing "and more". Added, every one `verified: false`, each with the page it
+came from as `source` and a `facebook` link where one was found:
+
+| Listing | What the source said | Still to confirm |
+|---|---|---|
+| Helderberg Target Archery (`helderberg-target-archery`) | helderbergarchery.co.za: founded October 2014, Vredenburg Manor House on Winery Road, members-only, visitors by arrangement with a member, coaching every second Saturday, tournaments on the others, no parties or team-building. | Fees; whether the visitor rule still stands. |
+| Journey's End Horseback Rides (`journeys-end-horseback-rides`) | horsebackrides.co.za: stables at Sir Lowry's Pass, outrides through vineyards, lessons all levels, pony rides, parties, leasing and livery, ~90 kg rider limit, WhatsApp booking, weather-dependent. | Prices for rides and lessons (only the life-skills programmes are priced on the site). |
+| Blue Rock Cable Waterski Resort (`blue-rock-sir-lowrys-pass`) | bluerock.co.za: 60 m deep quarry lake, cable waterski/wakeboard/kneeboard, 400 m zipline, rock jumping, canoeing, paintball, diving, camping; hours Tue–Fri 09:00–18:00 and weekends from 08:00 in season, daily in Dec/Jan. | Prices (none on the page); whether it opens on Mondays outside December. |
+| The Fire Dancing Studio (`fire-dancing-studio`) | thefiredancingstudio.com/events: Somerset West studio, poi/flow workshops (a 2022 example at R350), free community fire jams with donations for fuel, a jam held in the Lourensford wine cellar (29 June 2025), next date voted on Facebook. | Street address; current class timetable and prices. |
+| Clean C beach clean-up, Gordon's Bay (`clean-c-gordons-bay-beach-cleanup`) | cleanc.co.za: meets on the beach a few hundred metres north of the Spur opposite the old Cape Mall, 09:00 to just after 11:00, led by the ShowMe Helderberg editor. Other pages say ShowMe Helderberg runs a first-Saturday-of-the-month clean-up, and gordonsbay.travel listed a one-off community clean-up on 14 March 2026 (10:00–14:00). | Which Saturday it runs; kept as an activity, not an event, until a date is confirmed. |
+| Paragliding launch, Sir Lowry's Pass (`sir-lowrys-pass-paragliding`) | sahpa.co.za site guide: registered launch at the N2 lookout, 420 m above sea level, landing field at the bottom of the pass; Cape Town tandem operators fly passengers from it (20–40 min) when conditions suit. | Which operators fly it this season and their prices. |
+| Helderberg Leisure and Adventure Zone (`helderberg-adventure-zone-kayaks`) | Facebook page plus a Cape Town Tourism itinerary: kayak and SUP hire at 47 Gypsies Backpackers on the Gordon's Bay beachfront; a page video quoted R150 kayaks. | Hours, prices, whether it still trades (the page carries a `note`). |
+
+Looked for and **not** added: a "False Bay Angling Club, Strand" that one
+directory names (no site, club or contact could be confirmed; the Gordon's Bay
+Boat Angling Club is already listed); Cape Canopy Tour (real, but in the Elgin
+valley outside the four towns); Indigo Scuba's Saturday surf and SUP lessons
+(only a directory mention). No fire-dancing *event* had a 2026 date to list.
+
 ## Tabletop, card games and miniatures pass, 5 September 2026
 
 Asked for: activities like Imperium Games, The Jokers House, WildStorm Studios /
