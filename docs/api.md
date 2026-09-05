@@ -216,13 +216,27 @@ zone and would never show the ISP's PTR.
 | `TXT _dmarc` | `v=DMARC1; p=quarantine; adkim=s; aspf=s; fo=1` | Receivers junk (not just accept) mail that fails both checks; strict alignment on the `From` domain. No reporting address yet, as the domain does not receive mail. |
 | `MX @` | `0 .` (null MX, RFC 7505), or no MX at all | The domain sends but never receives. HostAfrica rejects `.` as an exchange, so the script deletes the registrar's default MX instead; with no MX, receivers fall back to the A record (GitHub Pages, no port 25) and fail fast rather than pointing replies at a web host on purpose. |
 
-One thing the zone cannot fix: **reverse DNS on `HS_MAIL_IP`**. Gmail and
-Outlook refuse port-25 connections from an address without a PTR. The ISP that
-owns the address sets it; ask for `mail.helderbergsocial.co.za`, which is the
-`HS_MAIL_HELO` name and resolves to the address, so HELO, forward and reverse
-all agree (requested 2026-09-04). Until then, expect Gmail recipients to be
-refused with a 550 and the mail log to say so. The System page shows the PTR
-check with the rest.
+One thing the zone cannot fix: **reverse DNS on `HS_MAIL_IP`**. Gmail
+documents a PTR as a requirement for senders; in practice (2026-09-05) it
+accepted the reminder mail from the PTR-less address and filed it as spam
+with the reason "similar to messages identified as spam in the past", so the
+missing PTR costs reputation rather than a 550. The record wanted is
+`mail.helderbergsocial.co.za`, the `HS_MAIL_HELO` name, which resolves to the
+address, so HELO, forward and reverse all agree.
+
+Who sets it: the reverse zone `5.221.41.in-addr.arpa` is **delegated to
+Daisy's own domain controllers** (checked with `dig NS` from a public resolver
+on 2026-09-05: dc01-dc1, dc02-dc1 (SOA), dc03-dc1-bry, dc04-dc1-kzn,
+dc09-dc1-pe and dc02-dc1-cpt under daisy.co.za; `.39` already answers
+`unifi004.daisy.co.za`). So the PTR is added on a Daisy DC, not by the ISP;
+the ISP ticket raised on 2026-09-04 (ECN DR040908) was not needed. On a DC:
+
+```powershell
+Add-DnsServerResourceRecordPtr -ZoneName "5.221.41.in-addr.arpa" -Name "36" -PtrDomainName "mail.helderbergsocial.co.za"
+```
+
+Then confirm from outside (`dig -x 41.221.5.36 @1.1.1.1`) and on the System
+page, which shows the PTR check with the rest.
 
 Checking a real send: address a subscription at the domain
 [mail-tester.com](https://www.mail-tester.com) shows and confirm it; the score

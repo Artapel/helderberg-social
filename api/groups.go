@@ -334,15 +334,20 @@ func (a *App) sendGroupsReminder(n time.Time) (int, error) {
 	}
 	var b strings.Builder
 	total := a.count(`SELECT COUNT(*) FROM fb_groups WHERE enabled = 1 AND (next_due = '' OR next_due <= ?)`, n.Format("2006-01-02"))
-	fmt.Fprintf(&b, "%d of %d due groups for today. Open each link, post as the page, then press \"Mark posted\" in the console:\n%s/admin/facebook/groups\n\n", len(due), total, a.cfg.APIURL)
+	// The mail is a nudge, not the payload. The first version carried the
+	// full post text for every group (four near-identical blocks, a dozen
+	// links, "free" and "ADS" in every paragraph) and Gmail filed it as
+	// spam (2026-09-05). The text lives on the console page, which differs
+	// per group anyway; the mail links that page once and each group once.
+	fmt.Fprintf(&b, "%d of %d groups are due today. The post text for each is on the console page; copy it from there, post as the page, then press \"Mark posted\":\n%s/admin/facebook/groups\n\n", len(due), total, a.cfg.APIURL)
 	for i, g := range due {
-		fmt.Fprintf(&b, "==== %d. %s (%s) ====\n%s\n", i+1, g.Name, groupKinds[g.Kind], g.URL())
+		fmt.Fprintf(&b, "%d. %s (%s)", i+1, g.Name, groupKinds[g.Kind])
 		if g.Note != "" {
-			fmt.Fprintf(&b, "Note: %s\n", g.Note)
+			fmt.Fprintf(&b, ", %s", g.Note)
 		}
-		fmt.Fprintf(&b, "\n%s\n\n", a.groupText(g, n))
+		fmt.Fprintf(&b, "\n   %s\n", g.URL())
 	}
-	b.WriteString("Post as the page (switch the profile in the composer). Read the group's rules first; a group that forbids promotion gets a shorter, friendlier version or nothing.\n")
+	b.WriteString("\nSwitch the profile to the page in the composer. Read the group's rules first; a group that forbids promotion gets a shorter, friendlier version or nothing.\n")
 	for _, to := range a.notifyList() {
 		if err := a.send(Message{To: to, Kind: "fbgroups", Subject: fmt.Sprintf("[HS] Facebook groups: %d to post today", len(due)), Text: b.String()}); err != nil {
 			return 0, err

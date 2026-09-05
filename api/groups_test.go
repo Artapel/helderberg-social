@@ -289,7 +289,7 @@ func TestGroupsSeedAndRota(t *testing.T) {
 	}
 	raw, _ := os.ReadFile(after[len(after)-1])
 	body := string(raw)
-	if !strings.Contains(body, "3 of ") || strings.Count(body, "==== ") != 3 || !strings.Contains(body, "/admin/facebook/groups") {
+	if !strings.Contains(body, "3 of ") || strings.Count(body, "facebook.com/groups/") != 3 || !strings.Contains(body, "/admin/facebook/groups") || strings.Contains(body, "events.html") {
 		t.Fatalf("reminder body:\n%s", body)
 	}
 	sunday := time.Date(2026, 9, 13, hour, 0, 0, 0, a.cfg.TZ)

@@ -98,7 +98,11 @@ So the API is a **planner**, not a poster. The shipped list is `api/fb-groups.js
 and the console page **Facebook -> Groups** (`/admin/facebook/groups`) shows what is due, the
 prepared text for each group, and the full rota. The daily batch is also emailed (setting
 `Facebook groups: daily reminder email`, default on, 08:00, 4 groups a day, never on Sundays)
-with the post text ready to paste and the group links.
+as a short nudge: the group names, kinds, notes and links, and one link to the console page.
+The post text is **not** in the mail. The first version carried it for every group (four
+near-identical blocks with a dozen links and "free", "ADS" and "Marketplace" in every one) and
+Gmail filed it as spam on 2026-09-05; the text differs per group and is copied from the
+console anyway.
 
 **Posting a batch (a person does this, 5 minutes a day):**
 
