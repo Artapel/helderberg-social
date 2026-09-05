@@ -13,6 +13,11 @@
     evEl.innerHTML = soon.length ? soon.map(HS.eventRow).join("") : '<p class="muted small">No dated events in the next seven days. Regular weekend fixtures are below.</p>';
   });
   document.getElementById("weekend-regular").innerHTML = HS.weekendListings().slice(0, 6).map(HS.card).join("");
+  HS.onPosts(function (posts) {
+    if (!posts.length) return;
+    document.getElementById("notices").innerHTML = posts.slice(0, 3).map(HS.postCard).join("");
+    document.getElementById("notices-strip").hidden = false;
+  });
 
   document.getElementById("featured-groups").innerHTML = D.listings.filter(function (l) { return l.type === "group" && l.category !== "online"; }).slice(0, 6).map(HS.card).join("");
 

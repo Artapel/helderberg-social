@@ -40,6 +40,7 @@
     '<dt>Cost</dt><dd>' + HS.esc(HS.costLabel(l.cost) || "Unknown") + '</dd>' +
     '<dt>Who for</dt><dd>' + (l.audience || []).map(function (a) { return HS.esc((HS.audiences[a] || {}).name || a); }).join(", ") + '</dd>' +
     (l.website ? '<dt>Website</dt><dd><a href="' + HS.esc(l.website) + '" target="_blank" rel="noopener">' + HS.esc(host(l.website)) + ' ↗</a></dd>' : "") +
+    (l.facebook ? '<dt>Facebook</dt><dd><a href="' + HS.esc(l.facebook) + '" target="_blank" rel="noopener">' + HS.esc(l.facebook.replace(/^https?:\/\/(www\.)?facebook\.com\//, "").replace(/\/$/, "")) + ' ↗</a></dd>' : "") +
     (l.contact ? '<dt>Contact</dt><dd>' + HS.esc(l.contact) + '</dd>' : "") +
     (l.source && l.source !== l.website ? '<dt>Source</dt><dd><a href="' + HS.esc(l.source) + '" target="_blank" rel="noopener">' + HS.esc(host(l.source)) + ' ↗</a></dd>' : "") +
     '</dl><div class="row" style="margin-top:.9rem">' + (l.website ? '<a class="btn" target="_blank" rel="noopener" href="' + HS.esc(l.website) + '">Visit website</a>' : "") +

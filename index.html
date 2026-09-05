@@ -27,7 +27,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/site.css?v=202609050712">
+<link rel="stylesheet" href="assets/css/site.css?v=202609050845">
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"WebSite","name":"Helderberg Social","description":"Groups, clubs, events and places across the Helderberg, Western Cape.","potentialAction":{"@type":"SearchAction","target":"directory.html?q={search_term_string}","query-input":"required name=search_term_string"}}
 </script>
@@ -72,6 +72,13 @@
     </div>
   </section>
 
+  <section style="padding-top:0" id="notices-strip" hidden>
+    <div class="wrap">
+      <div class="section-head"><h2>On the noticeboard</h2><a href="notices.html">All notices →</a></div>
+      <div id="notices" class="post-list"></div>
+    </div>
+  </section>
+
   <section style="padding-top:0">
     <div class="wrap">
       <div class="section-head"><h2>Groups worth joining</h2><a href="directory.html?type=group">All groups →</a></div>
@@ -89,8 +96,8 @@
   <section style="padding-top:0">
     <div class="wrap">
       <div class="band">
-        <div><h2>Run a club, group or event?</h2><p>Listings are free. Tell us what you do, when and where, and we'll add it to the directory.</p></div>
-        <a class="btn" href="submit.html">Add your listing</a>
+        <div><h2 data-hs-help="listing">Run a club, group or event?</h2><p>Listings are free. Tell us what you do, when and where, and we'll add it to the directory. Organisers and promoters who post a lot: <a href="promote.html">promote with us</a>.</p></div>
+        <span style="display:inline-flex;align-items:center;gap:.5rem"><a class="btn" href="submit.html">Add your listing</a><a class="btn ghost" href="promote.html">Promote with us</a></span>
       </div>
     </div>
   </section>
@@ -110,8 +117,8 @@
 
 <footer data-hs-footer></footer>
 
-<script src="data/data.js?v=202609050712"></script>
-<script src="assets/js/site.js?v=202609050712"></script>
-<script src="assets/js/pages/index.js?v=202609050712"></script>
+<script src="data/data.js?v=202609050845"></script>
+<script src="assets/js/site.js?v=202609050845"></script>
+<script src="assets/js/pages/index.js?v=202609050845"></script>
 </body>
 </html>

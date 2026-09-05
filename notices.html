@@ -4,29 +4,28 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdnjs.cloudflare.com https://*.tile.openstreetmap.org; connect-src 'self' https://api.helderbergsocial.co.za; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests">
-<title>Places — beaches, parks, trails and estates in the Helderberg</title>
-<meta name="description" content="Beaches, nature reserves, parks, trail centres and wine estates across the Helderberg, on a map and in a list.">
-<link rel="canonical" href="https://helderbergsocial.co.za/places.html">
+<title>Noticeboard — Helderberg Social</title>
+<meta name="description" content="Short notices from Helderberg clubs, venues, organisers and businesses: sign-ups, specials, calls for volunteers, new season dates.">
+<link rel="canonical" href="https://helderbergsocial.co.za/notices.html">
 <meta property="og:site_name" content="Helderberg Social">
 <meta property="og:locale" content="en_ZA">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://helderbergsocial.co.za/places.html">
-<meta property="og:title" content="Places · Helderberg Social">
-<meta property="og:description" content="Beaches, nature reserves, parks, trail centres and wine estates across the Helderberg, on a map and in a list.">
+<meta property="og:url" content="https://helderbergsocial.co.za/notices.html">
+<meta property="og:title" content="Noticeboard · Helderberg Social">
+<meta property="og:description" content="Short notices from Helderberg clubs, venues, organisers and businesses: sign-ups, specials, calls for volunteers, new season dates.">
 <meta property="og:image" content="https://helderbergsocial.co.za/assets/img/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Helderberg Social: your weekend in the Helderberg starts here.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Places · Helderberg Social">
-<meta name="twitter:description" content="Beaches, nature reserves, parks, trail centres and wine estates across the Helderberg, on a map and in a list.">
+<meta name="twitter:title" content="Noticeboard · Helderberg Social">
+<meta name="twitter:description" content="Short notices from Helderberg clubs, venues, organisers and businesses: sign-ups, specials, calls for volunteers, new season dates.">
 <meta name="twitter:image" content="https://helderbergsocial.co.za/assets/img/og.png">
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" integrity="sha384-c6Rcwz4e4CITMbu/NBmnNS8yN2sC3cUElMEMfP3vqqKFp7GOYaaBBCqmaWBjmkjb" crossorigin="anonymous">
 <link rel="stylesheet" href="assets/css/site.css?v=202609050845">
 </head>
 <body>
@@ -36,11 +35,13 @@
 <main id="main">
   <section>
     <div class="wrap">
-      <h1>Places to go</h1>
-      <p class="muted" style="max-width:60ch">Beaches, reserves, parks, trail centres and estates. Map positions are approximate until a listing is verified.</p>
-      <div id="map" class="map" style="margin-bottom:1.5rem"></div>
-      <div class="chips" id="cats"></div>
-      <div id="results" class="grid"></div>
+      <div class="section-head"><h1 style="margin:0">Noticeboard</h1><p class="muted">Short notices from clubs, venues, organisers and businesses that <a href="promote.html">promote with us</a>. Each one runs for the dates its poster set.</p></div>
+      <form class="filters filters-3" id="pfilters">
+        <div><label class="sr-only" for="town">Town</label><select id="town"><option value="">All towns</option></select></div>
+        <div><label class="sr-only" for="cat">Category</label><select id="cat"><option value="">All categories</option></select></div>
+        <div><a class="btn ghost" href="promote.html">Post here</a></div>
+      </form>
+      <div id="posts" class="post-list"><p class="muted">Loading…</p></div>
     </div>
   </section>
 </main>
@@ -49,7 +50,6 @@
 
 <script src="data/data.js?v=202609050845"></script>
 <script src="assets/js/site.js?v=202609050845"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js" integrity="sha384-NElt3Op+9NBMCYaef5HxeJmU4Xeard/Lku8ek6hoPTvYkQPh3zLIrJP7KiRocsxO" crossorigin="anonymous"></script>
-<script src="assets/js/pages/places.js?v=202609050845"></script>
+<script src="assets/js/pages/notices.js?v=202609050845"></script>
 </body>
 </html>

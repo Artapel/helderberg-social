@@ -258,7 +258,7 @@
       '<div class="date"><span>' + HS.MONTHS[d.getMonth()].slice(0, 3) + '</span><b>' + d.getDate() + '</b><span>' + HS.DAYS_SHORT[d.getDay()] + '</span></div>' +
       '<div><h3><a href="' + HS.esc(link) + '"' + (/^https?:/.test(link) ? ' target="_blank" rel="noopener"' : "") + '>' + HS.esc(e.title) + '</a></h3>' +
       '<div class="meta">' + HS.esc(HS.fmtRange(e)) + ' · 📍 ' + HS.esc(HS.townName(e.town)) + ' · ' + HS.esc(HS.catName(e.category)) +
-      (e.cost === "free" ? ' · <span class="pill free">Free</span>' : "") + (e.verified ? "" : ' · <span class="pill unverified">Unverified</span>') + '</div>' +
+      (e.cost === "free" ? ' · <span class="pill free">Free</span>' : "") + (e.promoted && e.by ? ' · <span class="pill promoted" title="Posted by the organiser from a promoter account">From ' + HS.esc(e.by) + '</span>' : "") + (e.verified ? "" : ' · <span class="pill unverified">Unverified</span>') + '</div>' +
       (e.summary ? '<p class="small" style="margin:.3rem 0 0">' + HS.esc(e.summary) + '</p>' : "") + '</div>' +
       '<div class="actions">' + (e.website ? '<a class="btn ghost sm" target="_blank" rel="noopener" href="' + HS.esc(e.website) + '">Details</a>' : "") +
       '<span class="cal-wrap"><a class="btn ghost sm" target="_blank" rel="noopener" href="' + HS.esc(HS.googleCalURL(e)) + '" title="Opens Google Calendar">' + HS.ICON.cal + 'Add to calendar</a>' +
@@ -290,7 +290,30 @@
   };
 
   /* ---------- Chrome ---------- */
-  var NAV = [["index.html", "Home"], ["directory.html", "Directory"], ["events.html", "Events"], ["places.html", "Places"], ["towns.html", "Towns"], ["subscribe.html", "Get updates"], ["about.html", "About"], ["submit.html", "Add a listing", "cta"]];
+  var NAV = [["index.html", "Home"], ["directory.html", "Directory"], ["events.html", "Events"], ["notices.html", "Notices"], ["places.html", "Places"], ["towns.html", "Towns"], ["subscribe.html", "Get updates"], ["about.html", "About"], ["submit.html", "Add a listing", "cta"]];
+  /* What the two "add" buttons are for, in one breath. Shown as a bubble next
+     to each of them (HS.help): a ? that opens on hover, tap or keyboard focus. */
+  HS.HELP = {
+    listing: { title: "Add a listing", what: "A listing is a standing entry in the directory: a club or group people can join, a regular activity (a weekly run, a class, a market), or a place worth knowing.", how: "Fill in the short form: name, town, category, when it happens, a few lines about it and a website or Facebook page. A person checks it and adds it to the directory, usually within a few days. It is free, and you can send a correction later from the same form.", link: "submit.html", cta: "Open the form" },
+    event: { title: "Post an event", what: "An event is something with a date that people can go to: a market day, a race, a talk, a clean-up, a show, an open day.", how: "Create a free account (or sign in with Google, Microsoft or Yahoo), fill in the date, time, town and details, and send it. A person checks it, usually within a day, and you get an email when it is live. You can edit or remove it afterwards from your account. Organisers who post a lot can apply for a promoter account: scheduling, imports, connected calendars and a noticeboard.", link: "promote.html", cta: "Post a lot? Promote with us" }
+  };
+  HS.help = function (key) {
+    var h = HS.HELP[key], id = "help-" + key + "-" + Math.random().toString(36).slice(2, 7);
+    return '<span class="help"><button type="button" class="help-btn" aria-label="What is ' + HS.esc(h.title.toLowerCase()) + '?" aria-expanded="false" aria-controls="' + id + '">?</button>' +
+      '<span class="help-bubble" role="tooltip" id="' + id + '"><b>' + HS.esc(h.title) + '</b><span class="help-what">' + HS.esc(h.what) + '</span><span class="help-how">' + HS.esc(h.how) + '</span>' +
+      (h.link ? '<a href="' + HS.esc(h.link) + '">' + HS.esc(h.cta) + ' →</a>' : "") + '</span></span>';
+  };
+  /* Tap and keyboard support for the bubbles (hover is CSS). One open at a time. */
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest && e.target.closest(".help-btn");
+    document.querySelectorAll(".help.open").forEach(function (el) { if (!btn || el !== btn.parentNode) { el.classList.remove("open"); el.querySelector(".help-btn").setAttribute("aria-expanded", "false"); } });
+    if (btn) { var o = btn.parentNode.classList.toggle("open"); btn.setAttribute("aria-expanded", o); e.preventDefault(); }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") document.querySelectorAll(".help.open").forEach(function (el) { el.classList.remove("open"); el.querySelector(".help-btn").setAttribute("aria-expanded", "false"); }); });
+  /* Pages mark a spot with data-hs-help="listing|event" and get the bubble. */
+  HS.placeHelp = function () {
+    document.querySelectorAll("[data-hs-help]").forEach(function (el) { if (!el.querySelector(".help")) el.insertAdjacentHTML("beforeend", " " + HS.help(el.getAttribute("data-hs-help"))); });
+  };
   /* Member accounts live on the API host (server-rendered, no JS needed there).
      These are the only absolute links in the chrome; they are omitted on a copy
      of the site that has no API. */
@@ -316,8 +339,8 @@
       h.className = "site-header";
       h.innerHTML = '<div class="wrap"><a class="logo" href="index.html" aria-label="' + HS.esc(D.site.name || "Helderberg Social") + ' home"><img class="logo-mark" src="assets/img/logo-mark.svg" alt="" width="36" height="36"><span class="wordmark">' + HS.wordmark() + '</span></a>' +
         '<button class="nav-toggle" aria-label="Menu" aria-expanded="false">☰</button><nav class="nav" aria-label="Main">' +
-        NAV.map(function (n) { return '<a href="' + n[0] + '" class="' + (n[2] || "") + (here === n[0] ? " active" : "") + '">' + n[1] + '</a>'; }).join("") +
-        (HS.api ? '<a href="' + HS.accountURL("/events/new") + '" class="cta alt">Post an event</a>' : "") + '</nav></div>';
+        NAV.map(function (n) { return '<a href="' + n[0] + '" class="' + (n[2] || "") + (here === n[0] ? " active" : "") + '">' + n[1] + '</a>' + (n[2] === "cta" ? HS.help("listing") : ""); }).join("") +
+        (HS.api ? '<a href="' + HS.accountURL("/events/new") + '" class="cta alt">Post an event</a>' + HS.help("event") : "") + '</nav></div>';
       var btn = h.querySelector(".nav-toggle"), nav = h.querySelector(".nav");
       btn.addEventListener("click", function () { var o = nav.classList.toggle("open"); btn.setAttribute("aria-expanded", o); });
     }
@@ -331,11 +354,12 @@
            people who run the site. Not a secret (the console has its own sign-in
            and second factor); just kept out of visitors' way. */
         (HS.api ? ' <a class="console-link" href="' + HS.api + '/admin/login" rel="nofollow" aria-label="Admin console" title="Admin console">·</a>' : "") + '</p></div>' +
-        '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
-        '<div><h4>Get involved</h4><ul>' + (HS.api ? '<li><a href="' + HS.accountURL("/events/new") + '">Post an event</a></li>' : "") + '<li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email or WhatsApp updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li>' + (HS.api ? '<li><a href="' + HS.accountURL() + '">Sign in / my account</a></li>' : "") + '</ul></div>' +
+        '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="notices.html">Noticeboard</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
+        '<div><h4>Get involved</h4><ul>' + (HS.api ? '<li><a href="' + HS.accountURL("/events/new") + '">Post an event</a>' + HS.help("event") + '</li>' : "") + '<li><a href="submit.html">Add a listing</a>' + HS.help("listing") + '</li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="promote.html">Promote with us</a></li><li><a href="subscribe.html">Email or WhatsApp updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li>' + (HS.api ? '<li><a href="' + HS.accountURL() + '">Sign in / my account</a></li>' : "") + '</ul></div>' +
         HS.followBlock() + '</div>';
     }
     HS.updateCounts();
+    HS.placeHelp();
     document.querySelectorAll("form[data-hs-subscribe]").forEach(function (f) {
       f.addEventListener("submit", function (e) {
         e.preventDefault();
@@ -376,6 +400,22 @@
   HS.onEvents = function (fn) {
     fn(false);
     if (loaded) { if (changed) fn(true); } else hooks.push(fn);
+  };
+  /* Noticeboard posts from promoters (/api/posts): fetched once, no offline
+     copy (they are short-lived by design). fn gets [] when the API is off. */
+  HS.onPosts = function (fn) {
+    if (!HS.api) { fn([]); return; }
+    fetch(HS.api + "/api/posts", { credentials: "omit", mode: "cors", headers: { "Accept": "application/json" } })
+      .then(function (r) { return r.ok ? r.json() : { posts: [] }; })
+      .then(function (j) { fn((j && j.posts) || []); })
+      .catch(function () { fn([]); });
+  };
+  HS.postCard = function (p) {
+    var d = new Date(), today = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    var when = p.starts > today ? "From " + HS.fmtDate(p.starts) : "Until " + HS.fmtDate(p.ends);
+    return '<article class="post" id="post-' + HS.esc(p.id) + '"><div class="meta"><span class="pill promoted">' + HS.esc(p.by || "Promoter") + '</span> · ' + HS.esc(HS.townName(p.town)) + ' · ' + HS.esc(HS.catName(p.category)) + ' · ' + HS.esc(when) + '</div>' +
+      '<h3>' + HS.esc(p.title) + '</h3><p>' + HS.esc(p.body).replace(/\n/g, "<br>") + '</p>' +
+      (p.link ? '<a class="btn ghost sm" href="' + HS.esc(p.link) + '" target="_blank" rel="noopener">More</a>' : "") + '</article>';
   };
   /* Site-wide switches the admin sets in the console: announcement banner,
      maintenance mode, paused forms. They ride along on /api/events. */
