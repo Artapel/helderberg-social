@@ -242,7 +242,13 @@ case: events arrive structured), `html` for a page to watch, or `list` for an
 index page or RSS/Atom feed where only *new links* matter. Give `listing`,
 `category` and `town` so auto-captured events land in the right place. Never
 guess a URL: record the one the organiser actually publishes, and fetch it
-first to see that it answers.
+first to see that it answers. When a shipped source turns out to be dead
+(bot-blocked, superseded, gone), do not delete its entry: give it a
+`retired` reason instead. The seed then switches the row off on every start
+with `retired: <reason>` as its status, so the history stays and the console
+shows why. A fetch that fails on the network or with a 5xx/429 is tried once
+more after 3 seconds (small WordPress sites here time out during their own
+night-time backups); a 4xx is the site's answer and is final.
 
 A feed that covers more than the Helderberg (Western Province Athletics, the
 canoe union, the Mountain Club's Google Calendar) takes a `match`: a
@@ -282,7 +288,14 @@ queued as an event; the admin follows the link and adds it if it is worth it.
 
 Every entry was fetched before it went in. What is there and what is not:
 
-- **ICS feeds (11).** WordPress sites running *The Events Calendar* export at
+- **ICS feeds (13).** Added 2026-09-05 now that series expand: NG Kerk
+  Gordonsbaai's Google Calendar (2,051 events, 52 series, no future one-offs;
+  filtered to services, catechism, youth, seniors, choir, music group, the
+  Narcotics Anonymous meeting and fetes, which drops the public holidays and
+  the council's internal dates) and the Gordon's Bay Yacht Club "Club &
+  Sailing Events" calendar (123 events, 12 series: quiz nights, Think & Drink,
+  Sailing Academy courses). The club's other calendar is free/busy only.
+  Then the originals: WordPress sites running *The Events Calendar* export at
   `/events/?ical=1`: Vergelegen, Idiom, Helderberg Hospice, Somerset West
   Cricket Club, Gordon's Bay Tourism and DistrictMail (the last two answered an
   empty calendar on the day, and will fill in when they publish), plus the
@@ -301,7 +314,11 @@ Every entry was fetched before it went in. What is there and what is not:
   site's *Get involved* and home pages are watched, and its two announced
   fundraisers (Art & Wine Auction, 2 Oct 2026; Golf Day, 3 Dec 2026, both
   Facebook-only events) went in as seed events.
-- **Watched pages (42).** Theatres and music (Playhouse, Drama Factory,
+- **Retired (2, 2026-09-05).** parkrun.co.za answers 403 to every request that
+  is not a browser (page and feed, with or without a browser User-Agent); the
+  run is every Saturday 08:00 and is on the site as a listing. The GBYC
+  calendar page is superseded by the club's ICS above.
+- **Watched pages (42, two of them retired).** Theatres and music (Playhouse, Drama Factory,
   Helderberg Nature Reserve concerts, Triggerfish), nature (reserve walks and
   talks, Somerset West Bird Club programme and events, Helderberg Farm),
   camping (CapeNature's Kogelberg page and events page, the Kogel Bay campsite

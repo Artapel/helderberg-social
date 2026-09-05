@@ -316,3 +316,107 @@ func TestGroupsSeedAndRota(t *testing.T) {
 		t.Fatal("cadence of 1 day accepted")
 	}
 }
+
+// The console page renders for a signed-in admin, with the batch, the
+// preview and the actions wired through /admin/do.
+func TestGroupsConsolePage(t *testing.T) {
+	a, mailDir := testApp(t)
+	c, csrf := login(t, a, mailDir, "10.0.0.7")
+	rr := c.do("GET", "/admin/facebook/groups", nil)
+	body := rr.Body.String()
+	if rr.Code != 200 || !strings.Contains(body, "Today's batch") || !strings.Contains(body, "HELDERBERG MAMMAS") || !strings.Contains(body, "Email me today's batch now") {
+		t.Fatalf("page: %d\n%s", rr.Code, body[:min(len(body), 400)])
+	}
+	g := a.groups(`fb_id = '654371487965184'`)[0]
+	rr = c.do("GET", fmt.Sprintf("/admin/facebook/groups?preview=%d", g.ID), nil)
+	if rr.Code != 200 || !strings.Contains(rr.Body.String(), "Post for HELDERBERG MAMMAS") || !strings.Contains(rr.Body.String(), "For everyone in HELDERBERG MAMMAS") {
+		t.Fatalf("preview: %d", rr.Code)
+	}
+	do := func(action string, extra url.Values) *httptest.ResponseRecorder {
+		f := url.Values{"csrf": {csrf}, "action": {action}, "id": {fmt.Sprint(g.ID)}}
+		for k, v := range extra {
+			f[k] = v
+		}
+		return c.do("POST", "/admin/do", f)
+	}
+	if rr = do("grp-posted", nil); rr.Code != 303 || !strings.Contains(rr.Header().Get("Location"), "/admin/facebook/groups") {
+		t.Fatalf("grp-posted: %d %s", rr.Code, rr.Header().Get("Location"))
+	}
+	if g2 := a.groups(`id = ?`, g.ID)[0]; g2.Posts != 1 || g2.NextDue == "" {
+		t.Fatalf("after grp-posted: %+v", g2)
+	}
+	do("grp-defer", url.Values{"days": {"10"}})
+	d := a.groups(`id = ?`, g.ID)[0].NextDue
+	want := time.Now().In(a.cfg.TZ).AddDate(0, 0, 10).Format("2006-01-02")
+	if d != want {
+		t.Fatalf("defer: next_due %s want %s", d, want)
+	}
+	do("grp-skip", url.Values{"reason": {"admins said no promotion"}})
+	if g3 := a.groups(`id = ?`, g.ID)[0]; g3.Enabled || g3.SkipReason != "admins said no promotion" {
+		t.Fatalf("skip: %+v", g3)
+	}
+	do("grp-enable", nil)
+	if !a.groups(`id = ?`, g.ID)[0].Enabled {
+		t.Fatal("enable did not switch the group on")
+	}
+	// A wrong CSRF token is refused.
+	if rr = c.do("POST", "/admin/do", url.Values{"csrf": {"nope"}, "action": {"grp-delete"}, "id": {fmt.Sprint(g.ID)}}); rr.Code == 303 && strings.Contains(rr.Header().Get("Location"), "msg=Removed") {
+		t.Fatal("delete went through with a bad csrf token")
+	}
+	if len(a.groups(`id = ?`, g.ID)) != 1 {
+		t.Fatal("group deleted despite bad csrf")
+	}
+	rr = do("grp-remind", nil)
+	if _, err := latestMailMaybe(mailDir, "fbgroups"); err != nil {
+		t.Fatalf("grp-remind sent no mail: %v", err)
+	}
+}
+
+/* ---------- seed retirement and fetch retry ---------- */
+
+func TestSeedRetiresDeadSources(t *testing.T) {
+	a, _ := testApp(t)
+	var en int
+	var st string
+	must(t, a.db.QueryRow(`SELECT enabled, last_status FROM sources WHERE url = 'https://www.parkrun.co.za/somersetwest/'`).Scan(&en, &st))
+	if en != 0 || !strings.HasPrefix(st, "retired: parkrun.co.za answers 403") {
+		t.Fatalf("parkrun: enabled=%d status=%q", en, st)
+	}
+	must(t, a.db.QueryRow(`SELECT enabled FROM sources WHERE url LIKE '%469267d8275f0881%'`).Scan(&en))
+	if en != 1 {
+		t.Fatal("the GBYC calendar feed should be on")
+	}
+	// A retired row is not checked by the scheduled run.
+	if n := a.count(`SELECT COUNT(*) FROM sources WHERE enabled = 1 AND last_status LIKE 'retired:%'`); n != 0 {
+		t.Fatalf("%d retired sources still enabled", n)
+	}
+}
+
+func TestFetchRetriesOnceOnServerError(t *testing.T) {
+	a, _ := testApp(t)
+	fetchRetryPause = 10 * time.Millisecond
+	defer func() { fetchRetryPause = 3 * time.Second }()
+	hits := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		switch r.URL.Path {
+		case "/flaky":
+			if hits == 1 {
+				w.WriteHeader(503)
+				return
+			}
+			fmt.Fprint(w, "<html>fine now</html>")
+		case "/blocked":
+			w.WriteHeader(403)
+		}
+	}))
+	defer srv.Close()
+	body, err := a.fetch(srv.URL + "/flaky")
+	if err != nil || !strings.Contains(string(body), "fine now") || hits != 2 {
+		t.Fatalf("flaky: err=%v hits=%d", err, hits)
+	}
+	hits = 0
+	if _, err := a.fetch(srv.URL + "/blocked"); err == nil || err.Error() != "HTTP 403" || hits != 1 {
+		t.Fatalf("blocked: err=%v hits=%d (a 4xx must not be retried)", err, hits)
+	}
+}

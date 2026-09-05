@@ -46,6 +46,10 @@ type sourceDef struct {
 	Category string `json:"category"`
 	Town     string `json:"town"`
 	Match    string `json:"match,omitempty"`
+	// Retired is set in sources.json when the shipped list knows a source is
+	// dead (bot-blocked, superseded, gone). The row is kept for its history
+	// but switched off on every start, with the reason as its status.
+	Retired string `json:"retired,omitempty"`
 }
 
 // matchLimit caps a source filter; anything longer is a mistake, not a pattern.
@@ -81,6 +85,11 @@ func (a *App) seedSources() error {
 			ON CONFLICT(url) DO UPDATE SET kind=excluded.kind, label=excluded.label, listing=excluded.listing, category=excluded.category, town=excluded.town, match=excluded.match`,
 			d.URL, d.Kind, d.Label, d.Listing, d.Category, d.Town, d.Match); err != nil {
 			return err
+		}
+		if d.Retired != "" {
+			if _, err := a.db.Exec(`UPDATE sources SET enabled = 0, last_status = ? WHERE url = ? AND enabled = 1`, "retired: "+d.Retired, d.URL); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -157,7 +166,33 @@ func pageHash(body []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// fetch gets a source once, and once more after a pause when the first try
+// failed on the network or with a 5xx: small WordPress sites here time out
+// during their own night-time backups and answer fine a moment later. A 4xx
+// is the site's answer and is not retried.
 func (a *App) fetch(url string) ([]byte, error) {
+	body, err := a.fetchOnce(url)
+	if err != nil && retryableFetch(err) {
+		time.Sleep(fetchRetryPause)
+		body, err = a.fetchOnce(url)
+	}
+	return body, err
+}
+
+var fetchRetryPause = 3 * time.Second
+
+type httpStatusError int
+
+func (e httpStatusError) Error() string { return fmt.Sprintf("HTTP %d", int(e)) }
+
+func retryableFetch(err error) bool {
+	if se, ok := err.(httpStatusError); ok {
+		return int(se) >= 500 || int(se) == 429
+	}
+	return true // timeouts, resets, DNS blips
+}
+
+func (a *App) fetchOnce(url string) ([]byte, error) {
 	client := &http.Client{Timeout: 25 * time.Second}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -171,7 +206,7 @@ func (a *App) fetch(url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+		return nil, httpStatusError(resp.StatusCode)
 	}
 	// 8 MB: a club's Google Calendar with a decade of history is around 4 MB,
 	// and cutting it short would silently drop whichever events came last.
