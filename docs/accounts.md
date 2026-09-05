@@ -11,12 +11,12 @@ works and now points people at accounts first).
 |---|---|
 | `/account/register` | name, email, password (10+ characters, not the address, not on the common list). Sends a confirmation link valid 24 h, single use. A second registration with the same address looks identical on screen but emails the owner instead. Honeypot field `website_url`. |
 | `/account/verify?t=` | confirms the address and signs the person in. |
-| `/account/login` | email + password, or the *Sign in with Google* button (see below). Same wording for an unknown address and a wrong password; 8 wrong tries lock the address for 15 minutes (per IP too). An unconfirmed account is told so and offered the confirmation mail again. |
-| `/account/google/start` → Google → `/account/google/callback` | *Sign in with Google* / *Continue with Google*. No password, no confirmation mail: Google has already confirmed the address. Details under *Sign in with Google*. |
+| `/account/login` | email + password, or a *Sign in with Google / Microsoft / Yahoo* button per configured provider (see below). Same wording for an unknown address and a wrong password; 8 wrong tries lock the address for 15 minutes (per IP too). An unconfirmed account is told so and offered the confirmation mail again. |
+| `/account/<provider>/start` → provider → `/account/<provider>/callback` | *Sign in with …* / *Continue with …* for `google`, `microsoft`, `yahoo`. No password; no confirmation mail when the provider vouches for the address. Details under *Sign in with Google, Microsoft or Yahoo*. |
 | `/account/forgot` → `/account/reset?t=` | reset link valid 1 h, single use; saving a new password signs every other device out and signs this one in. |
 | `/account` | *My events*: each event with its state (Waiting for a check / Published / Not published, plus "past"), a link to it on the site once published, Edit, Remove (tick-to-confirm). |
 | `/account/events/new`, `/account/events/edit?id=` | the event form: title, date, optional end date, times, town, category, cost, website, summary. Same validation as the public form. Saving a new event puts it in the queue as `pending_review` with the member's name and email, and mails the admin the usual approve/reject links. Saving an **edit** of any event, even a published one, sets it back to `pending_review` (and cancels a queued Facebook post) so the change is checked before it shows again. 10 new events per account per day. |
-| `/account/settings` | change name, change password (needs the current one; signs other devices out), unlink Google, delete the account (needs the password and a tick). A member who came in through Google and has no password can *set* one here without a current one, and deletes with the tick alone. |
+| `/account/settings` | change name, change password (needs the current one; signs other devices out), link or unlink Google / Microsoft / Yahoo, delete the account (needs the password and a tick). A member who came in through Google and has no password can *set* one here without a current one, and deletes with the tick alone. |
 | `POST /account/logout` | revokes the session server-side. |
 
 Approving or rejecting in the console emails the member (`member-approved` with the
@@ -30,64 +30,105 @@ site with `member_id`, `submitter_name` and `submitter_email` cleared: they are
 public information about an event, not about the person, and the privacy page says
 so. A member who wants a published event gone removes it under *My events* first.
 
-## Sign in with Google
+## Sign in with Google, Microsoft or Yahoo
 
-Added 2026-09-05. Standard OpenID Connect authorization-code flow with PKCE
-(S256), written against the standard library; no Google SDK. Off until both
-`HS_GOOGLE_CLIENT_ID` and `HS_GOOGLE_CLIENT_SECRET` are set, and the register and
-login pages simply do not show the button while it is off (the *System* page in
-the console says on/off, and `/api/health` reports `"google"`).
+Added 2026-09-05 (Google), extended the same day to Microsoft and Yahoo. One
+implementation, `api/oauth.go`: the OpenID Connect authorization-code flow on
+the standard library, no provider SDKs. Each provider is off until both
+`HS_<PROVIDER>_CLIENT_ID` and `HS_<PROVIDER>_CLIENT_SECRET` are set; the
+register and login pages show a button per provider that is on (the console's
+*System* page lists all three with on/off, and `/api/health` reports
+`"logins": [...]`).
 
-**Setting it up (once, in the Google Cloud console, by the site owner):**
+| | Google | Microsoft | Yahoo |
+|---|---|---|---|
+| Env | `HS_GOOGLE_CLIENT_ID` / `_SECRET` | `HS_MICROSOFT_CLIENT_ID` / `_SECRET` | `HS_YAHOO_CLIENT_ID` / `_SECRET` |
+| Redirect URI to register | `https://api.helderbergsocial.co.za/account/google/callback` | `…/account/microsoft/callback` | `…/account/yahoo/callback` |
+| Endpoints | accounts.google.com / oauth2.googleapis.com / openidconnect.googleapis.com | login.microsoftonline.com/common (v2.0) / graph.microsoft.com/oidc/userinfo | api.login.yahoo.com |
+| PKCE (S256) | yes | yes | no (not documented by Yahoo; the code is still bound to `state` and the cookie) |
+| Client auth at the token endpoint | `client_secret` in the body | body | HTTP Basic (Yahoo's documented form) |
+| Who vouches for the address | `email_verified` | consumer tenant, or `xms_edov` claim | `email_verified` |
 
-1. Create a project (any name, e.g. *Helderberg Social*).
-2. *APIs & Services → OAuth consent screen*: **External**; app name *Helderberg
-   Social*; support email; homepage `https://helderbergsocial.co.za`; privacy
-   policy `https://helderbergsocial.co.za/privacy.html`; authorised domain
-   `helderbergsocial.co.za`. Scopes: only `openid`, `email`, `profile` (all
-   non-sensitive, so no verification review is needed). Publish the app; in
-   *Testing* status only listed test users can sign in.
-3. *Credentials → Create credentials → OAuth client ID*: type **Web
-   application**; authorised redirect URI exactly
-   `https://api.helderbergsocial.co.za/account/google/callback`. Authorised
-   JavaScript origins are not needed (nothing runs in the browser).
-4. Put the client id (ends in `.apps.googleusercontent.com`) and the client secret
-   in `api/.env` on the Docker host as `HS_GOOGLE_CLIENT_ID` / `HS_GOOGLE_CLIENT_SECRET`
-   and redeploy (`bash api/deploy.sh`). The API refuses to start with only one of
-   the two set, or with an id that does not end in `.apps.googleusercontent.com`.
+**Setting each one up (once, by the site owner):**
 
-**How a sign-in resolves.** `/start` writes a signed 10-minute cookie
-(`hs_oauth`, path `/account/google`) holding a random `state`, the PKCE verifier
-and the return path, and sends the browser to Google with `prompt=select_account`.
-`/callback` checks `state` against the cookie (constant time), redeems the code at
-Google's token endpoint server-side with the client secret **and** the verifier,
-and reads `sub`, `email`, `email_verified`, `name` from the userinfo endpoint. The
-cookie is cleared either way. Then, in order:
+*Google.* Cloud console → a project → *APIs & Services → OAuth consent screen*:
+External, app name *Helderberg Social*, support email, homepage
+`https://helderbergsocial.co.za`, privacy `https://helderbergsocial.co.za/privacy.html`,
+authorised domain `helderbergsocial.co.za`, scopes `openid`, `email`, `profile`
+only (non-sensitive, no review). Publish. *Credentials → Create credentials →
+OAuth client ID*: **Web application**, authorised redirect URI exactly the one
+above. The id ends in `.apps.googleusercontent.com` (the API refuses any other).
 
-1. a member with that Google `sub` → signed in;
-2. else a member with that **email address** → the Google account is linked to it
-   (`google_sub` set) and, if the address was never confirmed by our own mail,
-   Google's confirmation counts (`verified_at` set). This is safe because Google
-   only returns `email_verified: true` for addresses it has confirmed itself, and
-   we refuse anything else;
-3. else a new member: `pw_hash = ''` (no password), `verified_at` set, `status =
-   active`, name from Google (or the local part of the address). `registrations_on`
-   and the email blocklist apply exactly as to the register form;
-4. a `disabled` member is refused in every case.
+*Microsoft.* Entra admin centre (entra.microsoft.com) → *App registrations → New
+registration*: name *Helderberg Social*; supported account types **Accounts in
+any organizational directory and personal Microsoft accounts** (this is what
+makes the `/common` endpoint work for outlook.com as well as work accounts);
+Redirect URI platform **Web**, the URI above. Then *Certificates & secrets → New
+client secret* (note the expiry: Entra secrets last at most 24 months, put the
+date in the calendar). *API permissions*: `openid`, `email`, `profile` (Microsoft
+Graph, delegated; already default). *Token configuration → Add optional claim →
+ID → `email` and `xms_edov`*: without `xms_edov` every work-account address is
+treated as unverified (see below), which is safe but means those people get a
+confirmation mail. The client id is the *Application (client) ID* GUID.
 
-A cancelled consent screen, a bad `state`, a missing or stale cookie, a rejected
-code, an unverified Google address and a paused registration each land back on
-the login page with a plain message and an audit row (`member.google_fail` with
-the reason; successes audit `member.google_login|link|register`). If Google's
-address for a linked `sub` no longer matches ours (a Workspace rename) ours is
-kept and `member.google_email_differs` is audited.
+*Yahoo.* developer.yahoo.com → *Create an app*: Web application; homepage
+`https://helderbergsocial.co.za`; redirect URI the one above; *API permissions →
+OpenID Connect permissions*: Email, Profile. Confidential client. Yahoo shows the
+Client ID (`dj0y…`) and Client Secret once.
+
+For each: put the pair in `api/.env` on the Docker host and redeploy
+(`bash api/deploy.sh`). The API refuses to start with only one of a pair set.
+
+**How a sign-in resolves.** `/account/<p>/start` writes a signed 10-minute cookie
+(`hs_oauth`, path `/account`) holding a random `state`, the PKCE verifier, the
+mode (sign-in or link) and the return path, and sends the browser to the
+provider with `prompt=select_account` where supported. `/account/<p>/callback`
+checks `state` against the cookie (constant time), redeems the code at the
+provider's token endpoint server-side with the client secret (and the verifier),
+reads the ID token's payload (no signature check: the token came straight from
+the provider over TLS, which OpenID Connect Core 3.1.3.7 allows) and the userinfo
+endpoint, and merges them (ID token wins; the subjects must agree). The cookie is
+cleared either way. Then, in order:
+
+1. a member with that `(provider, sub)` in `member_identities` → signed in;
+2. else, if the provider **vouched for the address**, a member with that email
+   address → the identity is attached to it, and if the address was never
+   confirmed by our own mail the provider's word counts (`verified_at` set);
+3. else, if the address is **not** vouched for and a member with it exists →
+   refused with "sign in with your password, then link under Account". This is
+   the whole defence against the Microsoft "nOAuth" problem: an Entra admin can
+   put anyone's address on a work account, so an unverified address never
+   attaches itself to an existing account;
+4. else a new member: no password (`pw_hash = ''`), name from the provider (or
+   the local part of the address), `status = active`, `registrations_on` and the
+   email blocklist applying exactly as to the register form. Vouched-for address
+   → `verified_at` set and signed in at once. Not vouched for → created
+   unconfirmed, our usual confirmation mail is sent, and the person is told to
+   open it; the provider button signs them in only once they have;
+5. a `disabled` member is refused in every case.
+
+What "vouched for" means per provider: Google and Yahoo send
+`email_verified: true` only for addresses they have confirmed. Microsoft sends no
+such claim; the address counts as verified when the ID token's `tid` is the
+consumer tenant `9188040d-6c67-4c5b-b112-36a304b66dad` (a personal Microsoft
+account, whose address is its login) or when `xms_edov` is true (the app
+registration asks for it and the domain is verified in that tenant).
+
+**Linking from Account.** A signed-in member can press *Link Google / Microsoft /
+Yahoo* under *Other ways to sign in* (`/account/<p>/start?link=1`). Because the
+person is already authenticated, the provider account is attached whatever
+address it carries; a provider account already attached to a different member is
+refused. Each linked provider shows with an *Unlink* button, offered only while
+another way in remains (a password or another provider), so nobody can lock
+themselves out. Audit rows: `member.oauth_login|link|register|
+register_unverified|unlink|fail|email_differs`, with the provider key in the
+detail.
 
 **Members without a password.** Password sign-in with such an address gets the
 same "wrong email address or password" as everyone else (no enumeration). Under
 *Account* they can set a first password without a current one, or use the reset
-link; after that both ways in work. *Unlink Google* is only offered once a
-password exists, so nobody can lock themselves out. Admin *disable* stops Google
-sign-in too (the session check and the callback both read `status`).
+link; after that both ways in work. Admin *disable* stops provider sign-in too
+(the session check and the callback both read `status`).
 
 ## What the admin sees
 
@@ -109,16 +150,18 @@ sign-in too (the session check and the callback both read `status`).
 ## Storage
 
 ```
-members          id, email UNIQUE, name, pw_hash ('' = Google only), created_at, verified_at,
-                 last_login_at, status (active|disabled), ip_hash, google_sub UNIQUE (NULL when not linked)
-member_sessions  id_hash PK, member_id, created_at, last_seen_at, expires_at, ip_hash, ua, revoked
+members            id, email UNIQUE, name, pw_hash ('' = provider only), created_at, verified_at,
+                   last_login_at, status (active|disabled), ip_hash
+member_identities  (provider, sub) PK, member_id (CASCADE), email, linked_at; index on member_id
+member_sessions    id_hash PK, member_id, created_at, last_seen_at, expires_at, ip_hash, ua, revoked
 events.member_id INTEGER (NULL for everything not posted from an account), index events_member
 ```
 
-Schema version 8 (5 added `events.member_id`, 6 added `sources.match`, 7 widened
+Schema version 9 (5 added `events.member_id`, 6 added `sources.match`, 7 widened
 `sources.kind` to allow `list` by rebuilding the table, and added `fb_groups`
-for the Facebook groups rota in `docs/facebook.md`; 8 added `members.google_sub`
-with the unique index `members_google`);
+for the Facebook groups rota in `docs/facebook.md`; 8 added `members.google_sub`;
+9 replaced it with `member_identities`, copying any linked Google row across and
+dropping the column);
 `migrate()` adds the missing columns to an older database on start-up. Housekeeping (hourly) deletes unconfirmed members after 3 days and
 expired or revoked member sessions after a day. The 90-day scrub of
 `submitter_name`/`submitter_email` on decided events applies to member events too;
@@ -177,14 +220,21 @@ passwords, honeypot, duplicate address silent, unconfirmed cannot sign in,
 the password and anonymises the published event while deleting the pending one.
 Argon2id round trip, salt, garbage hash, stale detection.
 
-`api/google_test.go` runs the whole Google flow against a fake Google
-(`httptest.Server` behind `googleEndpoints`) that checks the PKCE verifier
-against the challenge it was shown, the client secret and the redirect URI:
-new member via Google (verified, no password, signed in, second sign-in reuses the
-row, console pill and System panel, health flag); linking to an existing
-password account by address (password still works, unlink); Google confirming a
-never-confirmed account; refusals (wrong state before any token call, no cookie,
-cancelled, rejected code, unverified address, registrations paused for new but
-not existing members, disabled, blocklisted); the Google-only member's settings
-(set first password without a current one, unlink refused without a password,
-delete with the tick alone); everything hidden while off; config validation.
+`api/oauth_test.go` runs the whole flow against a fake provider
+(`httptest.Server` swapped into `oauthProviders[i]`'s endpoints) that checks the
+client credentials (body or Basic), the PKCE verifier against the challenge it
+was shown, and the redirect URI, and can serve an ID token: new member via
+Google (verified, no password, signed in, second sign-in reuses the row,
+console pill and System panel, health `logins`); linking to an existing password
+account by address, linking Yahoo from Account under a different address
+(Basic auth, no PKCE), the same Yahoo account refused for a second member,
+unlink rules; Microsoft's verification rule (consumer tenant straight in; work
+account without `xms_edov` created unconfirmed with our mail, refused a second
+sign-in until confirmed, refused attaching to an existing member's address;
+with `xms_edov` linked); refusals (wrong state before any token call, no
+cookie, cancelled, rejected code, a cookie from another provider, no address,
+unverified Google address → confirmation mail, registrations paused for new but
+not existing members, disabled, blocklisted); the provider-only member's
+settings; everything hidden while off and unknown providers 404; config
+validation for all three; migration from v7 and v8 databases (google_sub rows
+carried into `member_identities`, column dropped).

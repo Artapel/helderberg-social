@@ -22,7 +22,7 @@ func testApp(t *testing.T) (*App, string) {
 	dir := t.TempDir()
 	mailDir := filepath.Join(dir, "mail")
 	loc, _ := time.LoadLocation("Africa/Johannesburg")
-	cfg := &Config{
+	cfg := &Config{OAuth: map[string]oauthCreds{},
 		DataDir: dir, SiteURL: "https://helderbergsocial.co.za", APIURL: "https://api.helderbergsocial.co.za",
 		Secret: []byte("0123456789abcdef0123456789abcdef-test"), AdminEmail: "admin@example.org",
 		MailFrom: "Helderberg Social <hello@helderbergsocial.co.za>", DevMailDir: mailDir, TZ: loc,

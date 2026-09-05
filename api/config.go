@@ -48,10 +48,14 @@ type Config struct {
 	// Facebook page posting (Graph API). Page id + a Page access token; with
 	// neither set posting is off and the console says so.
 	FBPageID, FBToken, FBVersion string
-	// "Sign in with Google" for members (OpenID Connect). Both or none; with
-	// neither set the button is hidden and /account/google/* refuses politely.
-	GoogleClientID, GoogleClientSecret string
+	// "Sign in with Google / Microsoft / Yahoo" for members (OpenID Connect),
+	// keyed by provider. A provider is on when both its id and secret are set;
+	// with neither the button is hidden and /account/<provider>/* refuses
+	// politely.
+	OAuth map[string]oauthCreds
 }
+
+type oauthCreds struct{ ID, Secret string }
 
 func env(key, def string) string {
 	if v, ok := os.LookupEnv(key); ok && strings.TrimSpace(v) != "" {
@@ -83,13 +87,20 @@ func loadConfig() (*Config, error) {
 		WAVersion: env("HS_WA_API_VERSION", "v22.0"), WALang: env("HS_WA_LANG", "en"),
 		WATemplateConfirm: env("HS_WA_TEMPLATE_CONFIRM", "hs_confirm"), WATemplateDigest: env("HS_WA_TEMPLATE_DIGEST", "hs_digest"),
 		FBPageID: env("HS_FB_PAGE_ID", ""), FBToken: env("HS_FB_PAGE_TOKEN", ""), FBVersion: env("HS_FB_API_VERSION", "v22.0"),
-		GoogleClientID: env("HS_GOOGLE_CLIENT_ID", ""), GoogleClientSecret: env("HS_GOOGLE_CLIENT_SECRET", ""),
+		OAuth: map[string]oauthCreds{},
 	}
-	if (c.GoogleClientID == "") != (c.GoogleClientSecret == "") {
-		return nil, fmt.Errorf("Google sign-in needs HS_GOOGLE_CLIENT_ID and HS_GOOGLE_CLIENT_SECRET together; leave both empty to disable")
-	}
-	if c.GoogleClientID != "" && !strings.HasSuffix(c.GoogleClientID, ".apps.googleusercontent.com") {
-		return nil, fmt.Errorf("HS_GOOGLE_CLIENT_ID should end in .apps.googleusercontent.com")
+	for _, p := range oauthProviders {
+		key := "HS_" + strings.ToUpper(p.Key) + "_CLIENT_"
+		cr := oauthCreds{ID: env(key+"ID", ""), Secret: env(key+"SECRET", "")}
+		if (cr.ID == "") != (cr.Secret == "") {
+			return nil, fmt.Errorf("%s sign-in needs %sID and %sSECRET together; leave both empty to disable", p.Name, key, key)
+		}
+		if cr.ID != "" && p.IDSuffix != "" && !strings.HasSuffix(cr.ID, p.IDSuffix) {
+			return nil, fmt.Errorf("%sID should end in %s", key, p.IDSuffix)
+		}
+		if cr.ID != "" {
+			c.OAuth[p.Key] = cr
+		}
 	}
 	secret := env("HS_SECRET", "")
 	if len(secret) < 32 {

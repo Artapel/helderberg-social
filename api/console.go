@@ -871,9 +871,7 @@ type systemData struct {
 	MailRecords                                                   []mailRecord
 	MailOK                                                        bool
 	WAOn                                                          bool
-	GoogleOn                                                      bool
-	GoogleClientID, GoogleRedirect                                string
-	MembersGoogle                                                 int
+	Logins                                                        []loginInfo
 	WAPhoneID, WAVersion, WALang, WAWebhook, WATemplateNote       string
 	WATemplates                                                   map[string]string
 	WAAdminPhone                                                  string
@@ -893,10 +891,13 @@ func (a *App) systemPage(w http.ResponseWriter, r *http.Request) {
 		d.DBSize = fmtBytes(st.Size())
 	}
 	d.MailMode, d.MailFrom, d.MailHelo = mailMode(a.cfg), a.cfg.MailFrom, a.cfg.MailHelo
-	d.GoogleOn = a.googleEnabled()
-	if d.GoogleOn {
-		d.GoogleClientID, d.GoogleRedirect = a.cfg.GoogleClientID, a.googleRedirectURI()
-		d.MembersGoogle = a.count(`SELECT COUNT(*) FROM members WHERE google_sub IS NOT NULL`)
+	for _, p := range oauthProviders {
+		li := loginInfo{Key: p.Key, Name: p.Name, Note: p.Note, On: a.oauthEnabled(p.Key), Redirect: a.oauthRedirectURI(p), Env: "HS_" + strings.ToUpper(p.Key) + "_CLIENT_ID / _SECRET"}
+		if li.On {
+			li.ClientID = a.cfg.OAuth[p.Key].ID
+			li.Members = a.count(`SELECT COUNT(DISTINCT member_id) FROM member_identities WHERE provider = ?`, p.Key)
+		}
+		d.Logins = append(d.Logins, li)
 	}
 	d.WAOn = a.waEnabled()
 	if d.WAOn {

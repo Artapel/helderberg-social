@@ -15,7 +15,7 @@ func now() string { return time.Now().UTC().Format(time.RFC3339) }
 
 // Schema is applied in order; each statement is idempotent so a restart on a
 // populated database is a no-op. Bump schemaVersion when appending.
-const schemaVersion = 8
+const schemaVersion = 9
 
 var schema = []string{
 	`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)`,
@@ -69,9 +69,17 @@ var schema = []string{
 		verified_at TEXT,
 		last_login_at TEXT,
 		status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','disabled')),
-		ip_hash TEXT NOT NULL DEFAULT '',
-		google_sub TEXT
+		ip_hash TEXT NOT NULL DEFAULT ''
 	)`,
+	`CREATE TABLE IF NOT EXISTS member_identities (
+		provider TEXT NOT NULL,
+		sub TEXT NOT NULL,
+		member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+		email TEXT NOT NULL DEFAULT '',
+		linked_at TEXT NOT NULL,
+		PRIMARY KEY (provider, sub)
+	)`,
+	`CREATE INDEX IF NOT EXISTS member_identities_member ON member_identities(member_id)`,
 	`CREATE TABLE IF NOT EXISTS member_sessions (
 		id_hash TEXT PRIMARY KEY,
 		member_id INTEGER NOT NULL,
@@ -251,17 +259,19 @@ func migrate(db *sql.DB) error {
 			return fmt.Errorf("migrate sources to v7: %w", err)
 		}
 	}
-	// v8: members may sign in with Google; the Google subject links the
-	// account. NULL for everyone else, and the unique index ignores NULLs.
-	// The index lives here, not in the base schema list, because on an older
-	// database the column does not exist until this step has run.
-	if !hasColumn(db, "members", "google_sub") {
-		if _, err := db.Exec(`ALTER TABLE members ADD COLUMN google_sub TEXT`); err != nil {
-			return fmt.Errorf("migrate members.google_sub: %w", err)
+	// v8 added members.google_sub; v9 moves it into member_identities, one
+	// row per (provider, subject), so Microsoft and Yahoo fit alongside
+	// Google. Rows are copied before the column and its index go.
+	if hasColumn(db, "members", "google_sub") {
+		for _, q := range []string{
+			`INSERT OR IGNORE INTO member_identities(provider, sub, member_id, email, linked_at) SELECT 'google', google_sub, id, email, COALESCE(verified_at, created_at) FROM members WHERE google_sub IS NOT NULL AND google_sub <> ''`,
+			`DROP INDEX IF EXISTS members_google`,
+			`ALTER TABLE members DROP COLUMN google_sub`,
+		} {
+			if _, err := db.Exec(q); err != nil {
+				return fmt.Errorf("migrate members.google_sub to member_identities: %w", err)
+			}
 		}
-	}
-	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS members_google ON members(google_sub)`); err != nil {
-		return fmt.Errorf("migrate members_google index: %w", err)
 	}
 	return nil
 }
