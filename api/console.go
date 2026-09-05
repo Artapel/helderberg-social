@@ -600,7 +600,7 @@ type sourcesData struct {
 }
 
 func (a *App) sourcesPage(w http.ResponseWriter, r *http.Request) {
-	d := sourcesData{Kinds: []string{"ics", "html"}, Towns: sortedKeys(towns), Cats: sortedKeys(categories), LastWatch: a.metaGet("last:watch"), On: a.settingBool("watch_on"), Interval: a.settingInt("watch_minutes")}
+	d := sourcesData{Kinds: []string{"ics", "html", "list"}, Towns: sortedKeys(towns), Cats: sortedKeys(categories), LastWatch: a.metaGet("last:watch"), On: a.settingBool("watch_on"), Interval: a.settingInt("watch_minutes")}
 	rows, err := a.db.Query(`SELECT s.id, s.url, s.kind, s.label, s.listing, s.category, s.town, s.match, s.enabled, COALESCE(s.last_checked_at,''), s.last_hash, s.last_status, COALESCE(s.last_changed_at,''), (SELECT COUNT(*) FROM events e WHERE e.source_id = s.id) FROM sources s ORDER BY s.enabled DESC, s.label`)
 	if err == nil {
 		for rows.Next() {

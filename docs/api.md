@@ -121,7 +121,7 @@ sessions, audited), then remove it.
 | Subscribers | email address or WhatsApp number (channel pill), filter by channel, search either, edit preferences, resend/force confirmation (email link or WhatsApp template), remove, block address or number, add by hand (either), CSV export |
 | Digests | schedule and next runs, preview to yourself, send now (with confirmation), 30-day history |
 | Facebook | connection check, queue with cancel/post now, history with permalinks and retry, write or schedule a post, post any approved event, preview and queue this weekend's list |
-| Sources | add/edit/enable/disable/delete watched pages and ICS feeds (with an optional filter pattern for regional feeds), check one or all now, forget a source's memory |
+| Sources | add/edit/enable/disable/delete watched pages, ICS feeds and `list` aggregators (with an optional filter pattern for regional feeds), check one or all now, forget a source's memory. Full-width compact table since 2026-09-05: one line per source, the full URL, status and filter in tooltips, edit folded under *edit* |
 | Analytics | page views and visitors per day, top pages, API routes and errors, subscriber growth, events by town/category (7/30/90 days) |
 | Logs | last 300 requests, mail log (hashes only), audit log, last 500 app log lines |
 | Security | authenticator status, regenerate backup codes, remove authenticator, active sessions with revoke, sign-in history, blocklist |
