@@ -386,6 +386,13 @@ func TestSeedRetiresDeadSources(t *testing.T) {
 	if en != 1 {
 		t.Fatal("the GBYC calendar feed should be on")
 	}
+	// A changed reason lands even on a row that is already off.
+	_, _ = a.db.Exec(`UPDATE sources SET last_status = 'retired: old reason' WHERE url = 'https://www.parkrun.co.za/somersetwest/'`)
+	must(t, a.seedSources())
+	must(t, a.db.QueryRow(`SELECT last_status FROM sources WHERE url = 'https://www.parkrun.co.za/somersetwest/'`).Scan(&st))
+	if !strings.HasPrefix(st, "retired: replaced by the news feed") {
+		t.Fatalf("reason not refreshed: %q", st)
+	}
 	// A retired row is not checked by the scheduled run.
 	if n := a.count(`SELECT COUNT(*) FROM sources WHERE enabled = 1 AND last_status LIKE 'retired:%'`); n != 0 {
 		t.Fatalf("%d retired sources still enabled", n)

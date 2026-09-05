@@ -87,7 +87,7 @@ func (a *App) seedSources() error {
 			return err
 		}
 		if d.Retired != "" {
-			if _, err := a.db.Exec(`UPDATE sources SET enabled = 0, last_status = ? WHERE url = ? AND enabled = 1`, "retired: "+d.Retired, d.URL); err != nil {
+			if _, err := a.db.Exec(`UPDATE sources SET enabled = 0, last_status = ? WHERE url = ? AND (enabled = 1 OR last_status <> ?)`, "retired: "+d.Retired, d.URL, "retired: "+d.Retired); err != nil {
 				return err
 			}
 		}
