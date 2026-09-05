@@ -246,6 +246,8 @@ label { font-weight: 600; font-size: .88rem; display: block; margin-bottom: .3re
 .site-footer .follow svg { width: 18px; height: 18px; fill: currentColor; }
 @media (max-width: 900px) { .site-footer .wrap { grid-template-columns: 1fr 1fr; } .site-footer .wrap > :first-child { grid-column: 1 / -1; } }
 @media (max-width: 520px) { .site-footer .wrap { grid-template-columns: 1fr; } }
+.site-footer .console-link { color: inherit; text-decoration: none; opacity: .35; padding: 0 .35rem; }
+.site-footer .console-link:hover, .site-footer .console-link:focus { opacity: 1; }
 .site-footer h4 { font-family: var(--font-body); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text); }
 .site-footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .3rem; }
 .site-footer a { color: var(--muted); }

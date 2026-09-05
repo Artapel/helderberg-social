@@ -326,7 +326,11 @@
       f.className = "site-footer";
       f.innerHTML = '<div class="wrap"><div><div class="logo" style="margin-bottom:.5rem"><img class="logo-mark" src="assets/img/logo-mark.svg" alt="" width="30" height="30"><span class="wordmark">' + HS.wordmark() + '</span></div>' +
         '<p>' + HS.esc(D.site.tagline || "") + '</p><p class="small">Listings are community-submitted. Anything marked <em>Unverified</em> has not yet been checked by us: confirm times and prices with the organiser before you go.</p>' +
-        '<p class="small">© ' + new Date().getFullYear() + ' ' + HS.esc(D.site.name || "") + ' · ' + HS.esc(D.site.region || "") + '</p></div>' +
+        '<p class="small">© ' + new Date().getFullYear() + ' ' + HS.esc(D.site.name || "") + ' · ' + HS.esc(D.site.region || "") +
+        /* Admin console: a near-invisible dot after the copyright line, for the
+           people who run the site. Not a secret (the console has its own sign-in
+           and second factor); just kept out of visitors' way. */
+        (HS.api ? ' <a class="console-link" href="' + HS.api + '/admin/login" rel="nofollow" aria-label="Admin console" title="Admin console">·</a>' : "") + '</p></div>' +
         '<div><h4>Explore</h4><ul><li><a href="directory.html">Groups &amp; activities</a></li><li><a href="events.html">Events</a></li><li><a href="places.html">Places</a></li><li><a href="towns.html">Towns</a></li></ul></div>' +
         '<div><h4>Get involved</h4><ul>' + (HS.api ? '<li><a href="' + HS.accountURL("/events/new") + '">Post an event</a></li>' : "") + '<li><a href="submit.html">Add a listing</a></li><li><a href="submit.html?kind=update">Report a change</a></li><li><a href="subscribe.html">Email or WhatsApp updates</a></li><li><a href="about.html">About this site</a></li><li><a href="privacy.html">Privacy</a></li>' + (HS.api ? '<li><a href="' + HS.accountURL() + '">Sign in / my account</a></li>' : "") + '</ul></div>' +
         HS.followBlock() + '</div>';

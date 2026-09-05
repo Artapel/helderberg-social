@@ -94,7 +94,11 @@ the `member_id` link stays, so the console still shows who posted it.
 The site's header gained a **Post an event** button and the footer *Get involved*
 column a **Post an event** link and **Sign in / my account**, all pointing at the
 API host (`HS.accountURL()` in `assets/js/site.js`; omitted on a copy with no
-`apiBase`). `events.html` has a "Post your event" line, and `submit.html` shows a
+`apiBase`). The admin console has its own, deliberately quiet, way in: a faint
+middle dot after the copyright line in the footer (`.console-link`, 35% opacity,
+full on hover, `rel="nofollow"`) links to `/admin/login` on the API host. It is
+not a secret, the console has its own sign-in and second factor; it is just kept
+out of visitors' way (added 2026-09-05). `events.html` has a "Post your event" line, and `submit.html` shows a
 notice above the form when *A dated event* is chosen, pointing at the account
 route while still allowing the old confirm-by-email path.
 
