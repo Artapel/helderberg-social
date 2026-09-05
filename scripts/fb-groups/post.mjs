@@ -191,8 +191,11 @@ async function postTo(page, g, dry) {
   const dialog = page.getByRole("dialog", { name: /Create post/i }).first();
   await dialog.waitFor({ state: "visible", timeout: 20000 });
   await sleep(jitter(800, 1500));
-  const head = (await dialog.innerText().catch(() => "")) || "";
-  if (!head.toLowerCase().includes(PAGE_NAME.toLowerCase())) {
+  // The dialog paints in stages (first live use read it as just "Create
+  // post"), so wait for the poster's name rather than reading it once.
+  const asPage = dialog.getByText(PAGE_NAME, { exact: false }).first();
+  if (!(await asPage.waitFor({ state: "visible", timeout: 12000 }).then(() => true, () => false))) {
+    const head = (await dialog.innerText().catch(() => "")) || "";
     await page.keyboard.press("Escape").catch(() => {});
     return { state: "failed", note: `composer is not the page (${head.split("\n").slice(0, 3).join(" | ").slice(0, 80)})` };
   }
