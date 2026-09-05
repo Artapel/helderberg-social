@@ -108,15 +108,16 @@ window.HS_DATA = {
       name: "Somerset West parkrun",
       category: "running",
       town: "somerset-west",
-      summary: "Free, weekly, timed 5 km run or walk every Saturday at 08:00, organised entirely by volunteers. Register once online, bring your barcode, and stay for coffee afterwards.",
-      schedule: { days: [6], time: "08:00", text: "Every Saturday 08:00" },
+      summary: "Free, weekly, timed 5 km run or walk on Saturday mornings, organised entirely by volunteers. Register once online, bring your barcode, and stay for coffee afterwards. Paused: the venue is a construction site and no replacement has been agreed with the City yet.",
+      schedule: { days: [], text: "Paused since May 2025 (was every Saturday 08:00)" },
+      status: { kind: "paused", since: "2025-05-29", text: "Closed indefinitely since 29 May 2025: construction across the course made the venue unsafe and a proposed alternative venue could not be confirmed with the City of Cape Town. The organisers welcome venue suggestions. Nearest running parkruns are Mitchells Plain, Bellville and Betty's Bay (Harold Porter garden), all 24 km or more away.", link: "https://www.parkrun.co.za/somersetwest/news/2025/05/29/somerset-west-parkrun-closed-indefinitely/" },
       cost: "free",
       audience: ["everyone", "families", "beginners", "dogs"],
       tags: ["5k", "walk", "run", "volunteer"],
       website: "https://www.parkrun.co.za/somersetwest/",
-      source: "https://www.parkrun.co.za/somersetwest/",
+      source: "https://www.parkrun.co.za/somersetwest/news/2025/05/29/somerset-west-parkrun-closed-indefinitely/",
       coords: [-34.0900, 18.8500], coordsApprox: true,
-      verified: false
+      verified: true
     },
     {
       id: "wannabees-cycling-club",

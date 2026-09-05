@@ -20,8 +20,11 @@
     '<h1 style="color:#fff">' + HS.catIcon(l.category) + ' ' + HS.esc(l.name) + '</h1>' +
     '<div class="row"><span class="pill" style="background:rgba(255,255,255,.18);color:#fff;border-color:transparent">📍 ' + HS.esc(HS.townName(l.town)) + '</span>' +
     (l.cost === "free" ? '<span class="pill free">Free</span>' : '<span class="pill" style="background:rgba(255,255,255,.18);color:#fff;border-color:transparent">' + HS.esc(HS.costLabel(l.cost)) + '</span>') +
-    (l.verified ? '<span class="pill verified">Verified</span>' : '<span class="pill unverified">Unverified</span>') + '</div></div></section>' +
+    HS.statusPill(l) + (l.verified ? '<span class="pill verified">Verified</span>' : '<span class="pill unverified">Unverified</span>') + '</div></div></section>' +
     '<section><div class="wrap detail-grid"><div class="stack">' +
+    (l.status && l.status.kind ? '<div class="notice"><b>' + (l.status.kind === "closed" ? "Closed." : "Paused.") + '</b> ' + HS.esc(l.status.text || "") +
+      (l.status.link ? ' <a href="' + HS.esc(l.status.link) + '" target="_blank" rel="noopener">Organiser\'s notice ↗</a>' : "") +
+      ' <a href="submit.html?kind=update&id=' + encodeURIComponent(l.id) + '">Has it restarted? Tell us.</a></div>' : "") +
     '<div class="panel"><h3>About</h3><p>' + HS.esc(l.summary) + '</p>' +
     (l.tags && l.tags.length ? '<div class="row">' + l.tags.map(function (t) { return '<a class="pill" href="directory.html?q=' + encodeURIComponent(t) + '">' + HS.esc(t) + '</a>'; }).join("") + '</div>' : "") + '</div>' +
     '<div class="panel" id="lst-upcoming"' + (events.length ? "" : " hidden") + '><h3>Upcoming</h3><div class="event-list">' + events.map(HS.eventRow).join("") + '</div></div>' +

@@ -41,6 +41,16 @@ the page before launch, especially the 4 September opening night.
 2. Confirm name, days/times, cost, and that it is still running.
 3. Fill `website`, correct `schedule`, fix `coords` (drop `coordsApprox`).
 4. Set `verified: true` and note the date in a comment beside it.
+5. If the organiser says it has stopped, do not delete it: give it a `status`
+   (see the README) with their announcement as `link`, empty the schedule days,
+   and keep watching their news for the restart.
+
+Found this way on 5 September 2026: **Somerset West parkrun has been closed
+indefinitely since 29 May 2025** (construction across the course; no
+replacement venue agreed with the City). The site had it as a live Saturday
+run. It is now marked paused, and the API watches the run's news feed for the
+restart post. parkrun's own event map lists no parkrun anywhere in the
+Helderberg; the nearest are Mitchells Plain, Bellville and Betty's Bay.
 
 ## Research pass, 4 September 2026
 

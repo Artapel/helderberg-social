@@ -76,8 +76,17 @@
       return end >= t0 && HS.parseDate(e.date) <= t1;
     }).sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
   };
+  /* A listing with a status (paused, closed) stays findable, because people
+     search for it, but is marked on every card and never offered as
+     something to do this weekend. */
+  HS.statusPill = function (l) {
+    if (!l.status || !l.status.kind) return "";
+    var label = l.status.kind === "closed" ? "Closed" : "Paused";
+    return '<span class="pill status-' + HS.esc(l.status.kind) + '" title="' + HS.esc(l.status.text || "") + '">' + label + '</span>';
+  };
   HS.weekendListings = function () {
     return D.listings.filter(function (l) {
+      if (l.status && l.status.kind) return false;
       var d = (l.schedule && l.schedule.days) || [];
       return d.indexOf(6) !== -1 || d.indexOf(0) !== -1 || d.indexOf(5) !== -1;
     });
@@ -236,7 +245,7 @@
       '<div class="meta"><span>📍 ' + HS.esc(HS.townName(l.town)) + '</span><span>' + HS.esc(HS.catName(l.category)) + '</span></div>' +
       '<p class="summary">' + HS.esc(l.summary) + '</p>' +
       (sched ? '<div class="small muted">🕒 ' + HS.esc(sched) + '</div>' : "") +
-      '<div class="foot">' + (l.cost === "free" ? '<span class="pill free">Free</span>' : '<span class="pill">' + HS.esc(HS.costLabel(l.cost)) + '</span>') +
+      '<div class="foot">' + HS.statusPill(l) + (l.cost === "free" ? '<span class="pill free">Free</span>' : '<span class="pill">' + HS.esc(HS.costLabel(l.cost)) + '</span>') +
       (l.verified ? '<span class="pill verified">Verified</span>' : '<span class="pill unverified">Unverified</span>') +
       (l.tags || []).slice(0, 2).map(function (t) { return '<span class="pill">' + HS.esc(t) + '</span>'; }).join("") +
       '</div></div></a>';

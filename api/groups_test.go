@@ -379,7 +379,7 @@ func TestSeedRetiresDeadSources(t *testing.T) {
 	var en int
 	var st string
 	must(t, a.db.QueryRow(`SELECT enabled, last_status FROM sources WHERE url = 'https://www.parkrun.co.za/somersetwest/'`).Scan(&en, &st))
-	if en != 0 || !strings.HasPrefix(st, "retired: parkrun.co.za answers 403") {
+	if en != 0 || !strings.HasPrefix(st, "retired: replaced by the news feed") {
 		t.Fatalf("parkrun: enabled=%d status=%q", en, st)
 	}
 	must(t, a.db.QueryRow(`SELECT enabled FROM sources WHERE url LIKE '%469267d8275f0881%'`).Scan(&en))

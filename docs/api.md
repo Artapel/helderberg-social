@@ -314,10 +314,14 @@ Every entry was fetched before it went in. What is there and what is not:
   site's *Get involved* and home pages are watched, and its two announced
   fundraisers (Art & Wine Auction, 2 Oct 2026; Golf Day, 3 Dec 2026, both
   Facebook-only events) went in as seed events.
-- **Retired (2, 2026-09-05).** parkrun.co.za answers 403 to every request that
-  is not a browser (page and feed, with or without a browser User-Agent); the
-  run is every Saturday 08:00 and is on the site as a listing. The GBYC
-  calendar page is superseded by the club's ICS above.
+- **Retired (2, 2026-09-05).** The parkrun page watch, replaced by the run's
+  news feed as a `list` source (the WAF in front of parkrun.co.za refused the
+  bare `HelderbergSocialBot/1.0` User-Agent with a 403 on every page but lets
+  the standard `Mozilla/5.0 (compatible; HelderbergSocialBot/1.0; +url)` form
+  through, so the bot now sends that; the feed was open either way). That feed
+  is how it came out that Somerset West parkrun has been closed indefinitely
+  since 29 May 2025. The GBYC calendar page is superseded by the club's ICS
+  above.
 - **Watched pages (42, two of them retired).** Theatres and music (Playhouse, Drama Factory,
   Helderberg Nature Reserve concerts, Triggerfish), nature (reserve walks and
   talks, Somerset West Bird Club programme and events, Helderberg Farm),

@@ -38,6 +38,10 @@ page ships a strict Content Security Policy.
 - Never invent contact details. `contact` stays empty until the organiser supplies it.
 - Every listing carries a `source` URL where one exists, so a reviewer can check it.
 - Map coordinates are approximate (`coordsApprox: true`) until verified.
+- A listing that has stopped keeps its entry (people search for it) and gets a
+  `status: { kind: "paused" | "closed", since, text, link }`. Cards and the listing
+  page show a Paused/Closed pill and a notice with the organiser's own announcement;
+  the listing is never offered under "this weekend". Clear `status` when it restarts.
 
 ## Submissions
 

@@ -198,7 +198,11 @@ func (a *App) fetchOnce(url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "HelderbergSocialBot/1.0 (+"+a.cfg.SiteURL+"/about.html)")
+	// The "Mozilla/5.0 (compatible; Name/1.0; +url)" form is what the big
+	// crawlers use and what the WAF in front of parkrun.co.za keys on: the
+	// bare "Name/1.0" form got a 403 from it on every page (checked
+	// 2026-09-05), this form is let through. Still says who we are.
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; HelderbergSocialBot/1.0; +"+a.cfg.SiteURL+"/about.html)")
 	req.Header.Set("Accept", "text/calendar, text/html;q=0.9, */*;q=0.5")
 	resp, err := client.Do(req)
 	if err != nil {

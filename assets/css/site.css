@@ -153,6 +153,8 @@ label { font-weight: 600; font-size: .88rem; display: block; margin-bottom: .3re
 .pill { display: inline-block; font-size: .74rem; padding: .2rem .55rem; border-radius: 999px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); }
 .pill.free { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); border-color: transparent; }
 .pill.verified { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); border-color: transparent; }
+.pill.status-paused, .pill.status-closed { background: var(--warn); color: #fff; border-color: transparent; font-weight: 600; }
+.pill.status-closed { background: #b3261e; }
 .pill.unverified { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); border-color: transparent; }
 
 /* Filters */

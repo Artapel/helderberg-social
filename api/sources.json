@@ -8,7 +8,8 @@
   {"url": "https://www.helderberg.biz/xml.php?type=r", "kind": "html", "label": "helderberg.biz event feed (RSS)", "listing": "", "category": "community", "town": "somerset-west"},
   {"url": "https://vergelegen.co.za/vergelegen-trail/", "kind": "html", "label": "Vergelegen Trail season dates", "listing": "vergelegen-trail-guided-hike", "category": "hiking", "town": "somerset-west"},
   {"url": "https://www.helderbergharriers.co.za/", "kind": "html", "label": "Helderberg Harriers", "listing": "helderberg-harriers", "category": "running", "town": "somerset-west"},
-  {"url": "https://www.parkrun.co.za/somersetwest/", "kind": "html", "label": "Somerset West parkrun news", "listing": "somerset-west-parkrun", "category": "running", "town": "somerset-west", "retired": "parkrun.co.za answers 403 to every non-browser request (checked 2026-09-05); parkrun is every Saturday 08:00 and is on the site as a listing"},
+  {"url": "https://www.parkrun.co.za/somersetwest/", "kind": "html", "label": "Somerset West parkrun page", "listing": "somerset-west-parkrun", "category": "running", "town": "somerset-west", "retired": "replaced by the news feed below, which reports each new post instead of every page change"},
+  {"url": "https://www.parkrun.co.za/somersetwest/feed/", "kind": "list", "label": "Somerset West parkrun news (new posts; paused since May 2025, watching for the restart)", "listing": "somerset-west-parkrun", "category": "running", "town": "somerset-west"},
   {"url": "https://e-clubhouse.org/sites/gordonsbay/", "kind": "html", "label": "Gordon's Bay Yacht Club (e-clubhouse)", "listing": "gordons-bay-yacht-club", "category": "water", "town": "gordons-bay"},
 
   {"url": "https://vergelegen.co.za/events/?ical=1", "kind": "ics", "label": "Vergelegen events calendar", "listing": "vergelegen-estate", "category": "wine", "town": "somerset-west"},
